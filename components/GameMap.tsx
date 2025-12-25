@@ -112,12 +112,31 @@ const getRandomThought = (entity: GameEntity, neighbors: GameEntity[], nearbyZom
         return homes[Math.floor(Math.random() * homes.length)];
       }
 
-      if (entity.isArmed) {
-        pool = Math.random() < 0.5 ? THOUGHTS.ARMED_CIVILIAN : THOUGHTS.CIVILIAN_ARMED;
-      } else if (nearbyZombies > 0) {
-        pool = THOUGHTS.CIVILIAN_PANIC;
+      // Proximity checks for reactive thoughts
+      const SEARCH_DIST = 0.002;
+      const zombiesVeryClose = neighbors.filter(n => n.type === EntityType.ZOMBIE && getVecDistance(entity.position, n.position) < 0.001);
+      const nearbySoldiers = neighbors.filter(n => n.type === EntityType.SOLDIER && getVecDistance(entity.position, n.position) < SEARCH_DIST);
+      const nearbyMedics = neighbors.filter(n => n.isMedic && getVecDistance(entity.position, n.position) < SEARCH_DIST);
+
+      if (zombiesVeryClose.length > 0 && Math.random() < 0.6) {
+          pool = THOUGHTS.CIVILIAN_SEE_ZOMBIE_CLOSE;
+      } else if (nearbyMedics.length > 0 && Math.random() < 0.4) {
+          pool = THOUGHTS.CIVILIAN_SEE_MEDIC;
+      } else if (nearbySoldiers.length > 0 && Math.random() < 0.4) {
+          pool = THOUGHTS.CIVILIAN_SEE_SOLDIER;
       } else {
-        pool = THOUGHTS.CIVILIAN_CALM;
+          const thoughtRoll = Math.random();
+          if (thoughtRoll < 0.2) {
+              pool = THOUGHTS.CIVILIAN_MEMORIES;
+          } else if (thoughtRoll < 0.4) {
+              pool = THOUGHTS.CIVILIAN_SURVIVAL;
+          } else if (entity.isArmed) {
+              pool = Math.random() < 0.5 ? THOUGHTS.ARMED_CIVILIAN : THOUGHTS.CIVILIAN_ARMED;
+          } else if (nearbyZombies > 0) {
+              pool = THOUGHTS.CIVILIAN_PANIC;
+          } else {
+              pool = THOUGHTS.CIVILIAN_CALM;
+          }
       }
     }
     return pool[Math.floor(Math.random() * pool.length)];
@@ -303,6 +322,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
   const victoryAnnouncedRef = useRef(false);
   const lowHealthAnnouncedRef = useRef(false);
   const logCounterRef = useRef(0);
+  const tickRef = useRef(0);
   const getUniqueId = () => `${Date.now()}-${logCounterRef.current++}`;
 
   useEffect(() => { pausedRef.current = isPaused; }, [isPaused]);
@@ -467,6 +487,8 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
 
     const intervalId = setInterval(() => {
       if (!pausedRef.current) {
+        tickRef.current++;
+        const tick = tickRef.current;
         
         const allEntities = entitiesRef.current;
         const activeEntities = allEntities.filter(e => !e.isDead); 
@@ -666,7 +688,8 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
         });
 
         // 1.1b-2 BACKGROUND LOCATION UPDATE
-        if (activeEntities.length > 0) {
+        // Throttled: only update location once every 40 ticks (~2 seconds)
+        if (tick % 40 === 0 && activeEntities.length > 0) {
           const updateTarget = activeEntities[Math.floor(Math.random() * activeEntities.length)];
           mapDataService.getLocationInfo(updateTarget.position).then(info => {
               if (info) {

@@ -12,9 +12,11 @@ interface UIOverlayProps {
   onTogglePause: () => void;
   onReset: () => void;
   onLocateEntity: (id: string) => void;
+  followingEntityId: string | null;
+  onToggleFollow: (id: string) => void;
 }
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedTool, onSelectTool, onTogglePause, onReset, onLocateEntity }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedTool, onSelectTool, onTogglePause, onReset, onLocateEntity, followingEntityId, onToggleFollow }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [size, setSize] = useState({ width: 384, height: 224 }); // Initial w-96 (384px) h-56 (224px)
@@ -126,8 +128,21 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
       return (
         <div className="absolute top-28 right-4 w-64 bg-slate-900/95 backdrop-blur-xl border border-slate-500/50 rounded-xl p-4 shadow-2xl z-30 pointer-events-auto transition-all duration-200 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-3">
-                <h3 className="text-sm font-bold text-white tracking-wider uppercase">个体信息识别</h3>
-                <div className={`w-3 h-3 rounded-full animate-pulse ${ent.type === EntityType.ZOMBIE ? 'bg-red-500' : ent.type === EntityType.SOLDIER ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white tracking-wider uppercase">个体信息识别</h3>
+                    <div className={`w-3 h-3 rounded-full animate-pulse ${ent.type === EntityType.ZOMBIE ? 'bg-red-500' : ent.type === EntityType.SOLDIER ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
+                </div>
+                <button 
+                  onClick={() => { audioService.playSound(SoundType.UI_CLICK); onToggleFollow(ent.id); }}
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
+                    followingEntityId === ent.id 
+                    ? 'bg-blue-500 border-blue-400 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]' 
+                    : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+                  }`}
+                  title={followingEntityId === ent.id ? "取消跟踪" : "开启镜头跟踪"}
+                >
+                  {followingEntityId === ent.id ? "🛰️ 正在跟踪" : "🎥 镜头跟踪"}
+                </button>
             </div>
             
             <div className="space-y-2">

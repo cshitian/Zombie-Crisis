@@ -4,8 +4,11 @@ import { GameState, Coordinates } from '../types';
 
 let ai: GoogleGenAI | null = null;
 
-if (process.env.API_KEY) {
-  ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const key = process.env.API_KEY || process.env.GEMINI_API_KEY;
+if (key && key !== 'undefined' && key !== 'your_api_key_here') {
+  ai = new GoogleGenAI({ 
+    apiKey: key,
+  });
 }
 
 export const generateRadioChatter = async (
@@ -14,7 +17,7 @@ export const generateRadioChatter = async (
   event: 'START' | 'RESCUE' | 'WAVE_CLEARED' | 'LOW_HEALTH' | 'RANDOM' | 'DISCOVERY',
   locationInfo?: any // LocationInfo type from mapDataService
 ): Promise<string> => {
-  if (!ai) return "指挥中心连接中断...";
+  if (!ai) return "指挥中心连接中断（API Key未配置或无效）...";
 
   const { healthyCount, infectedCount, soldierCount } = gameState;
   const loc = locationInfo || { name: '未知区域' };
@@ -46,7 +49,7 @@ export const generateRadioChatter = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash', 
       contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n任务: ${eventPrompts[event]}` }] }]
     });
     return response.text?.trim() || "信号干扰...";

@@ -117,6 +117,10 @@ const App: React.FC = () => {
             setFollowingEntityId(id); 
             setSelectedEntityId(id); 
         }}
+        followingEntityId={followingEntityId}
+        onToggleFollow={(id) => {
+            setFollowingEntityId(prev => prev === id ? null : id);
+        }}
       />
     </div>
   );

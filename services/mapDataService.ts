@@ -17,8 +17,21 @@ export interface LocationInfo {
   type?: string;    // highway, shop, etc.
 }
 
+// Round coordinates to ~10m precision to increase cache hits
 const getCacheKey = (coords: Coordinates) => {
   return `${coords.lat.toFixed(4)},${coords.lng.toFixed(4)}`;
+};
+
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 1100; // 1.1s to be safe (OSM limit is 1s)
+
+const throttleRequest = async () => {
+  const now = Date.now();
+  const timeSinceLast = now - lastRequestTime;
+  if (timeSinceLast < MIN_REQUEST_INTERVAL) {
+    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLast));
+  }
+  lastRequestTime = Date.now();
 };
 
 export const mapDataService = {
@@ -35,6 +48,7 @@ export const mapDataService = {
     }
 
     try {
+      await throttleRequest();
       const url = `https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json&zoom=18&addressdetails=1`;
       
       const response = await fetch(url, {
@@ -78,6 +92,7 @@ export const mapDataService = {
 
   async getNearbyFeatures(coords: Coordinates): Promise<string[]> {
     try {
+      await throttleRequest();
       // Overpass API is better for getting a list of features
       // Query nodes with names within 500m
       const url = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:500,${coords.lat},${coords.lng})[name];out;`;
