@@ -68,6 +68,10 @@ export const GAME_CONSTANTS = {
   // Bubbling / Mood
   MOOD_CHANCE: 0.005, // Chance per tick to show a new mood
   MOOD_DURATION: 4000, // Duration of the bubble in ms
+
+  // BGM Logic
+  COMBAT_COOLDOWN_TICKS: 100, // ~5 seconds (50ms * 100)
+  DANGER_VISION_RANGE: 0.0015, // Distance humans feel "danger"
 };
 
 export const MOOD_ICONS = {

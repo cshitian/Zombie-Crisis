@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, Circle, Polygon } from 'react-leaflet';
 import L from 'leaflet';
-import { Coordinates, EntityType, CivilianType, GameEntity, GameState, RadioMessage, ToolType, Vector, WeaponType, VisualEffect, SoundType, Building } from '../types';
+import { Coordinates, EntityType, CivilianType, GameEntity, GameState, RadioMessage, ToolType, Vector, WeaponType, VisualEffect, SoundType, Building, BGMState } from '../types';
 import { GAME_CONSTANTS, DEFAULT_LOCATION, CHINESE_SURNAMES, CHINESE_GIVEN_NAMES_MALE, CHINESE_GIVEN_NAMES_FEMALE, THOUGHTS, WEAPON_STATS, WEAPON_SYMBOLS, MOOD_ICONS } from '../constants';
 import { generateRadioChatter } from '../services/geminiService';
 import { audioService } from '../services/audioService';
@@ -309,6 +309,7 @@ const EntityMarker = React.memo(({ entity, lat, lng, isSelected, onSelect }: {
 
 interface GameMapProps {
   selectedTool: ToolType;
+  onSelectTool: (tool: ToolType) => void;
   isPaused: boolean;
   onUpdateState: (state: GameState) => void;
   onAddLog: (msg: RadioMessage) => void;
@@ -373,7 +374,7 @@ const LocateController: React.FC<{ followingEntityId: string | null, entities: G
   return null;
 };
 
-const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState, onAddLog, initialState, selectedEntityId, onEntitySelect, selectedBuildingId, onBuildingSelect, followingEntityId, onCancelFollow }) => {
+const GameMap: React.FC<GameMapProps> = ({ selectedTool, onSelectTool, isPaused, onUpdateState, onAddLog, initialState, selectedEntityId, onEntitySelect, selectedBuildingId, onBuildingSelect, followingEntityId, onCancelFollow }) => {
   const [centerPos, setCenterPos] = useState<Coordinates>(DEFAULT_LOCATION);
   const [entities, setEntities] = useState<GameEntity[]>([]);
   const [effects, setEffects] = useState<VisualEffect[]>([]); 
@@ -389,6 +390,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
   const lowHealthAnnouncedRef = useRef(false);
   const logCounterRef = useRef(0);
   const tickRef = useRef(0);
+  const lastCombatTickRef = useRef<number>(0);
   const buildingsRef = useRef<Building[]>([]);
   const getUniqueId = () => `${Date.now()}-${logCounterRef.current++}`;
 
@@ -787,8 +789,38 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
             }
           }
 
-          if (Math.random() < 0.02) { 
+          if (Math.random() < 0.002) { 
             entity.thought = getRandomThought(entity, activeEntities, nearbyThreats);
+            
+            // Random Civilian Sounds with Proximity Check & Demographic Data
+            if (entity.type === EntityType.CIVILIAN && !entity.isDead) {
+                const isPriority = entity.id === selectedIdRef.current;
+                const distToCenter = getVecDistance(entity.position, centerPos);
+                
+                if (isPriority || distToCenter < 0.0015) {
+                    const entityData = { 
+                        gender: entity.gender, 
+                        age: entity.age, 
+                        isZombie: false 
+                    };
+                    
+                    if (nearbyThreats > 0) {
+                        audioService.playSound(
+                            Math.random() < 0.7 ? SoundType.CIV_FEAR : SoundType.CIV_SCREAM, 
+                            isPriority, 
+                            entityData
+                        );
+                    } else if (entity.isArmed) {
+                        audioService.playSound(
+                            Math.random() < 0.5 ? SoundType.CIV_SHOUT : SoundType.CIV_URGE, 
+                            isPriority, 
+                            entityData
+                        );
+                    } else if (activeEntities.some(e => e.isMedic && getVecDistance(entity.position, e.position) < 0.0005)) {
+                        if (Math.random() < 0.2) audioService.playSound(SoundType.CIV_CLAP, isPriority);
+                    }
+                }
+            }
           }
 
           // Mood Logic
@@ -876,9 +908,15 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
 
             if (isExposed) {
                 h.infectionRiskTimer += GAME_CONSTANTS.TICK_RATE;
+                // Periodic biting sound while nearby - reduced frequency
+                if (Math.random() < 0.01) {
+                    audioService.playSound(SoundType.ZOM_BITE, h.id === selectedIdRef.current);
+                }
                 if (h.infectionRiskTimer >= GAME_CONSTANTS.INFECTION_DURATION) {
                     // Infection Complete
                     newlyInfectedIds.add(h.id);
+                    // Zombie Sound on infection
+                    audioService.playSound(SoundType.ZOM_ROAR, h.id === selectedIdRef.current);
                 }
             } else {
                 // Safe, reset timer immediately
@@ -912,6 +950,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
 
           const weaponType = shooter.weaponType || WeaponType.PISTOL;
           const stats = WEAPON_STATS[weaponType];
+          const isPriority = shooter.id === selectedIdRef.current;
           
           // Do not target zombies that are already trapped
           const targets = zombies.filter(z => !newlyDeadIds.has(z.id) && !z.isTrapped && getVecDistance(shooter.position, z.position) < stats.range);
@@ -985,7 +1024,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                   // Only fire if we hit a decent cluster (>= 2 zombies) and it's safe, or if it's the only option and safe
                   if (bestTarget && (maxHits >= 2 || targets.length === 1)) {
                       shooter.ammo = (shooter.ammo || 0) - 1;
-                      audioService.playSound(sType);
+                      audioService.playSound(sType, isPriority);
                       onAddLog({ 
                           id: `rocket-fire-${Date.now()}-${shooter.id}`, 
                           sender: `队员 ${shooter.name}`, 
@@ -1040,7 +1079,8 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                         : targets[Math.floor(Math.random() * targets.length)];
 
                    if (!target.isTrapped) { 
-                       audioService.playSound(sType);
+                       lastCombatTickRef.current = tickRef.current;
+                       audioService.playSound(sType, isPriority);
                        target.isTrapped = true;
                        target.trappedTimer = GAME_CONSTANTS.NET_DURATION;
                        onAddLog({ 
@@ -1060,7 +1100,8 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                        });
                    }
               } else if (weaponType === WeaponType.SHOTGUN) {
-                  audioService.playSound(sType);
+                  lastCombatTickRef.current = tickRef.current;
+                  audioService.playSound(sType, isPriority);
                   const nearbyTargets = targets.slice(0, 3); 
                   nearbyTargets.forEach(target => {
                     target.health -= stats.damage;
@@ -1073,11 +1114,13 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                       timestamp: Date.now()
                     });
                     if (target.health <= 0) newlyDeadIds.add(target.id);
+                    else if (Math.random() < 0.15) audioService.playSound(SoundType.ZOM_FIGHT);
                   });
 
               } else {
                 // Pistol / Sniper
-                audioService.playSound(sType);
+                lastCombatTickRef.current = tickRef.current;
+                audioService.playSound(sType, isPriority);
                 
                 const target = targets[Math.floor(Math.random() * targets.length)];
                 
@@ -1105,6 +1148,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                     timestamp: Date.now()
                 });
                 if (target.health <= 0) newlyDeadIds.add(target.id);
+                else if (Math.random() < 0.15) audioService.playSound(SoundType.ZOM_FIGHT);
               }
             }
           }
@@ -1133,6 +1177,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                 e.isTrapped = false;
                 e.infectionRiskTimer = 0;
                 e.thought = "我...我感觉好多了...";
+                audioService.playSound(SoundType.HEAL_COMPLETE, e.id === selectedIdRef.current);
             }
             else if (newlyDeadIds.has(e.id)) {
                 e.isDead = true;
@@ -1190,6 +1235,30 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
 
       onUpdateState({...stateRef.current});
 
+      // --- 1.4 BGM DYNAMIC SWITCHING ---
+      if (!pausedRef.current && !stateRef.current.gameResult) {
+          const activeEntities = entitiesRef.current.filter(e => !e.isDead);
+          const armedUnits = activeEntities.filter(e => e.type === EntityType.SOLDIER || (e.type === EntityType.CIVILIAN && e.isArmed));
+          const zombies = activeEntities.filter(e => e.type === EntityType.ZOMBIE);
+          
+          const totalActive = activeEntities.length;
+          const zombieRatio = totalActive > 0 ? zombies.length / totalActive : 0;
+          
+          let newState = BGMState.SAFE;
+          
+          if (armedUnits.length > 0) {
+              newState = BGMState.COMBAT;
+          } else if (zombieRatio > 0.3) {
+              newState = BGMState.DANGER;
+          } else {
+              newState = BGMState.SAFE;
+          }
+          
+          audioService.setBGMState(newState);
+      } else if (stateRef.current.gameResult) {
+          audioService.stopBGM();
+      }
+
     }, GAME_CONSTANTS.TICK_RATE);
 
     return () => clearInterval(intervalId);
@@ -1209,7 +1278,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
         const end = stateRef.current.cooldowns[tool] || 0;
         if (now < end) {
              onAddLog({ id: Date.now().toString(), sender: '系统', text: '行动冷却中...', timestamp: Date.now() });
-             audioService.playSound(SoundType.UI_ERROR);
+             audioService.playSound(SoundType.UI_ERROR, true);
              return false;
         }
         stateRef.current.cooldowns[tool] = now + duration;
@@ -1221,14 +1290,14 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
         stateRef.current.resources -= cost;
         return true;
       }
-      audioService.playSound(SoundType.UI_ERROR);
+      audioService.playSound(SoundType.UI_ERROR, true);
       onAddLog({ id: Date.now().toString(), sender: '系统', text: '资金不足', timestamp: Date.now() });
       return false;
     };
 
     if (selectedTool === ToolType.AIRSTRIKE) {
         if (useResource(GAME_CONSTANTS.COST_AIRSTRIKE) && checkCooldown(ToolType.AIRSTRIKE, GAME_CONSTANTS.COOLDOWN_AIRSTRIKE)) {
-            audioService.playSound(SoundType.DEPLOY_ACTION);
+            audioService.playSound(SoundType.DEPLOY_ACTION, true);
             const killedEntities: {id: string, name: string, type: EntityType}[] = [];
             // Friendly Fire: Airstrike kills ANY entity in range
             entitiesRef.current.forEach(e => {
@@ -1250,7 +1319,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                     timestamp: Date.now()
                 });
             }
-            audioService.playSound(SoundType.WEAPON_ROCKET); 
+            audioService.playSound(SoundType.WEAPON_ROCKET, true); 
             const pilotChatter = [
                 `打击确认。目标区域已覆盖。`,
                 `已投弹。地面部队请确认毁伤情况。`,
@@ -1259,10 +1328,11 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
             ];
             const text = pilotChatter[Math.floor(Math.random() * pilotChatter.length)];
             onAddLog({ id: Date.now().toString(), sender: '飞行员', text: `${text} 消灭 ${killedEntities.length} 个目标（含误伤）。`, timestamp: Date.now() });
+            onSelectTool(ToolType.NONE);
         }
     } else if (selectedTool === ToolType.SUPPLY_DROP) {
         if (useResource(GAME_CONSTANTS.COST_SUPPLY) && checkCooldown(ToolType.SUPPLY_DROP, GAME_CONSTANTS.COOLDOWN_SUPPLY)) {
-            audioService.playSound(SoundType.DEPLOY_ACTION);
+            audioService.playSound(SoundType.DEPLOY_ACTION, true);
             const candidates = entitiesRef.current.filter(e => 
               !e.isDead && e.type === EntityType.CIVILIAN && !e.isInfected && getVecDistance(e.position, clickPos) < GAME_CONSTANTS.SUPPLY_RADIUS
             );
@@ -1285,11 +1355,12 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
             } else {
                 addLog({ sender: '系统', text: `投放位置无幸存者接收。` });
             }
+            onSelectTool(ToolType.NONE);
         }
 
     } else if (selectedTool === ToolType.SPEC_OPS) {
         if (useResource(GAME_CONSTANTS.COST_SPEC_OPS) && checkCooldown(ToolType.SPEC_OPS, GAME_CONSTANTS.COOLDOWN_SPECOPS)) {
-            audioService.playSound(SoundType.DEPLOY_ACTION);
+            audioService.playSound(SoundType.DEPLOY_ACTION, true);
             for(let i=0; i<4; i++) {
                // Spec Ops Loadout: Rocket, Sniper, or Net Gun
                const rand = Math.random();
@@ -1301,7 +1372,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                  id: `soldier-${Date.now()}-${i}`,
                  type: EntityType.SOLDIER,
                  name: getRandomName(true),
-                 age: 20 + Math.floor(Math.random() * 10),
+                 age: 20 + Math.floor(Math.random() * i),
                  gender: '男',
                  thought: THOUGHTS.SOLDIER[0],
                  position: { lat: clickPos.lat + (Math.random()*0.0001), lng: clickPos.lng + (Math.random()*0.0001) },
@@ -1325,16 +1396,17 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                 addLog({ sender: '特种部队', text: `${text} 小队已在 ${info?.name || '指定区域'} 降落。` });
               });
             });
+            onSelectTool(ToolType.NONE);
         }
     } else if (selectedTool === ToolType.MEDIC_TEAM) {
         if (useResource(GAME_CONSTANTS.COST_MEDIC) && checkCooldown(ToolType.MEDIC_TEAM, GAME_CONSTANTS.COOLDOWN_MEDIC)) {
-            audioService.playSound(SoundType.DEPLOY_ACTION);
+            audioService.playSound(SoundType.DEPLOY_ACTION, true);
             for(let i=0; i<2; i++) { // Deploy 2 medics
                entitiesRef.current.push({
                  id: `medic-${Date.now()}-${i}`,
                  type: EntityType.SOLDIER, // Uses soldier movement stats
                  name: getRandomName(true),
-                 age: 30 + Math.floor(Math.random() * 10),
+                 age: 30 + Math.floor(Math.random() * i),
                  gender: '男',
                  thought: THOUGHTS.MEDIC[0],
                  position: { lat: clickPos.lat + (Math.random()*0.0001), lng: clickPos.lng + (Math.random()*0.0001) },
@@ -1353,6 +1425,7 @@ const GameMap: React.FC<GameMapProps> = ({ selectedTool, isPaused, onUpdateState
                });
             }
             onAddLog({ id: Date.now().toString(), sender: '医疗组', text: "医疗小组已就位，寻找目标中...", timestamp: Date.now() });
+            onSelectTool(ToolType.NONE);
         }
     }
   };

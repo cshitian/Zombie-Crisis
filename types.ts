@@ -7,6 +7,13 @@ export interface Building {
   type: string;
 }
 
+export enum BGMState {
+  NONE = 'NONE',
+  SAFE = 'SAFE',
+  DANGER = 'DANGER',
+  COMBAT = 'COMBAT'
+}
+
 export enum EntityType {
   CIVILIAN = 'CIVILIAN',
   ZOMBIE = 'ZOMBIE',
@@ -48,7 +55,18 @@ export enum SoundType {
   WEAPON_NET = 'WEAPON_NET',
   HEAL_START = 'HEAL_START',
   HEAL_COMPLETE = 'HEAL_COMPLETE',
-  DEPLOY_ACTION = 'DEPLOY_ACTION'
+  DEPLOY_ACTION = 'DEPLOY_ACTION',
+  // Civilian Sounds
+  CIV_FEAR = 'CIV_FEAR',
+  CIV_SCREAM = 'CIV_SCREAM',
+  CIV_SHOUT = 'CIV_SHOUT',
+  CIV_URGE = 'CIV_URGE',
+  CIV_CLAP = 'CIV_CLAP',
+  CIV_CRY = 'CIV_CRY',
+  // Zombie Sounds
+  ZOM_ROAR = 'ZOM_ROAR',
+  ZOM_BITE = 'ZOM_BITE',
+  ZOM_FIGHT = 'ZOM_FIGHT'
 }
 
 export interface Coordinates {

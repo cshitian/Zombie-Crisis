@@ -101,6 +101,7 @@ const App: React.FC = () => {
       <GameMap 
         key={gameId} 
         selectedTool={selectedTool}
+        onSelectTool={setSelectedTool}
         isPaused={gameState.isPaused}
         initialState={gameState}
         onUpdateState={handleStateUpdate}
