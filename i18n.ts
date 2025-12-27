@@ -57,7 +57,14 @@ const resources = {
       "medic_team_ready": "医疗小组已就位，寻找目标中...",
       "airstrike": "精确空袭",
       "building_inspector": "建筑战术识别",
+      "unnamed_building": "建筑",
       "safety_estimate": "安全性预估",
+      "safety_levels": {
+        "LOW": "低",
+        "MEDIUM": "中",
+        "HIGH": "高",
+        "VERY_HIGH": "极高"
+      },
       "tactical_pros": "战术优势 (Pros)",
       "tactical_cons": "战术缺陷 (Cons)",
       "scanning": "🛰️ 深度扫描中...",
@@ -288,7 +295,14 @@ const resources = {
       "medic_team_ready": "Medical team deployed, searching for targets...",
       "airstrike": "Airstrike",
       "building_inspector": "Tactical Building Recon",
+      "unnamed_building": "Building",
       "safety_estimate": "Safety Est.",
+      "safety_levels": {
+        "LOW": "LOW",
+        "MEDIUM": "MEDIUM",
+        "HIGH": "HIGH",
+        "VERY_HIGH": "VERY HIGH"
+      },
       "tactical_pros": "Tactical Pros",
       "tactical_cons": "Tactical Cons",
       "scanning": "🛰️ Deep Scanning...",
@@ -519,7 +533,14 @@ const resources = {
       "medic_team_ready": "医療班が展開しました。負傷者を捜索中...",
       "airstrike": "精密空爆",
       "building_inspector": "建築戦術識別",
+      "unnamed_building": "建築物",
       "safety_estimate": "安全性評価",
+      "safety_levels": {
+        "LOW": "低",
+        "MEDIUM": "中",
+        "HIGH": "高",
+        "VERY_HIGH": "非常に高い"
+      },
       "tactical_pros": "戦術的利点",
       "tactical_cons": "戦術的欠点",
       "scanning": "🛰️ 詳細スキャン中...",
@@ -750,7 +771,14 @@ const resources = {
       "medic_team_ready": "의료팀이 배치되었습니다. 부상자를 찾는 중...",
       "airstrike": "정밀 공습",
       "building_inspector": "건물 전술 식별",
+      "unnamed_building": "건물",
       "safety_estimate": "안전도 평가",
+      "safety_levels": {
+        "LOW": "낮음",
+        "MEDIUM": "보통",
+        "HIGH": "높음",
+        "VERY_HIGH": "매우 높음"
+      },
       "tactical_pros": "전술적 장점",
       "tactical_cons": "전술적 단점",
       "scanning": "🛰️ 정밀 스캔 중...",

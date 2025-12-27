@@ -599,12 +599,19 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                 cooldownEnd: Date.now() + GAME_CONSTANTS.COOLDOWN_TACTICAL_ANALYSIS,
                 isAnalyzing: false
             };
-            
+
             // Log completion
-            addLog({
-                 sender: i18n.t('tactical_ai'),
-                 text: i18n.t('ai_messages.scanning_complete', { name: b.name })
-            });
+            if (analysisResult.survivalGuide === i18n.t('ai_scan_fail_guide')) {
+                addLog({
+                     sender: i18n.t('headquarters'),
+                     text: i18n.t('ai_messages.scanning_error', { name: b.name })
+                });
+            } else {
+                addLog({
+                     sender: i18n.t('tactical_ai'),
+                     text: i18n.t('ai_messages.scanning_complete', { name: b.name })
+                });
+            }
             
             // Sync triggers
             setBuildingsSyncTrigger(prev => prev + 1);

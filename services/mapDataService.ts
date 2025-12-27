@@ -167,7 +167,7 @@ export const mapDataService = {
           id: `building-${e.id}`,
           geometry: e.geometry.map((pt: any) => ({ lat: pt.lat, lng: pt.lon })),
           tags: e.tags || {},
-          name: e.tags?.[`name:${i18n.language.split('-')[0]}`] || e.tags?.name || e.tags?.['name:zh'] || e.tags?.['name:en'] || 'Building',
+          name: e.tags?.[`name:${i18n.language.split('-')[0]}`] || e.tags?.name || e.tags?.['name:zh'] || e.tags?.['name:en'] || 'UNNAMED_BUILDING',
           type: e.tags?.building || 'building'
         }));
         

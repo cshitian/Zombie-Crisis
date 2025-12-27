@@ -201,16 +201,20 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
 
           <div className="space-y-4">
               <div>
-                  <h4 className="text-xl font-black text-white leading-tight">{b.name}</h4>
+                  <h4 className="text-xl font-black text-white leading-tight">
+                    {b.name === 'UNNAMED_BUILDING' ? t('unnamed_building') : b.name}
+                  </h4>
                   <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">{b.type.toUpperCase()}</span>
+                      <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
+                        {analysis.title}
+                      </span>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                         analysis.safety === 'VERY HIGH' ? 'text-emerald-400 bg-emerald-400/10' :
                         analysis.safety === 'HIGH' ? 'text-blue-400 bg-blue-400/10' :
                         analysis.safety === 'MEDIUM' ? 'text-yellow-400 bg-yellow-400/10' :
                         'text-red-400 bg-red-400/10'
                       }`}>
-                          {t('safety_estimate')}: {analysis.safety}
+                          {t('safety_estimate')}: {t(`safety_levels.${analysis.safety.replace(' ', '_')}`)}
                       </span>
                   </div>
               </div>

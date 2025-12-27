@@ -94,19 +94,43 @@ export const generateTacticalAnalysis = async (
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n当前上下文: ${context}` }] }],
-      config: { responseMimeType: "application/json" }
+      // @ts-ignore - The SDK types use responseMimeType but some environments/versions of Gemini 2.0 require response_mime_type at runtime for JSON mode
+      config: { response_mime_type: "application/json" }
     });
     
-    let text = response.text || JSON.stringify({ "survivalGuide": i18n.t('ai_scan_fail_guide'), "tacticalReport": i18n.t('ai_scan_fail_report', { zombies: nearbyStats.zombies }) });
-    // Handle cases where Gemini might wrap the JSON in markdown code blocks
-    if (text.includes("```json")) {
-        text = text.split("```json")[1].split("```")[0].trim();
-    } else if (text.includes("```")) {
-        text = text.split("```")[1].split("```")[0].trim();
+    let text = response.text || "";
+    if (!text && response.candidates && response.candidates[0]) {
+        text = response.candidates[0].content.parts[0].text || "";
     }
     
-    const result = JSON.parse(text);
-    return result;
+    const fallbackResult = { 
+        "survivalGuide": i18n.t('ai_scan_fail_guide'), 
+        "tacticalReport": i18n.t('ai_scan_fail_report', { zombies: nearbyStats.zombies }) 
+    };
+
+    if (!text) return fallbackResult;
+
+    // Handle cases where Gemini might wrap the JSON in markdown code blocks
+    // Support case-insensitive detection
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (jsonMatch) {
+        text = jsonMatch[1].trim();
+    }
+    
+    // Sometimes it might still have "json" at the start even without ```
+    text = text.replace(/^(json|JSON)\s*/, "").trim();
+    
+    try {
+        const result = JSON.parse(text);
+        // Normalize keys (handle potential snake_case or localized keys if they slip through)
+        return {
+            survivalGuide: result.survivalGuide || result.survival_guide || result.生存指南 || fallbackResult.survivalGuide,
+            tacticalReport: result.tacticalReport || result.tactical_report || result.实战报告 || fallbackResult.tacticalReport
+        };
+    } catch (e) {
+        console.error("JSON Parse Error in Tactical Analysis:", e, "Raw text:", text);
+        return fallbackResult;
+    }
   } catch (error) {
     console.error("Gemini Tactical Analysis Error:", error);
     return {
