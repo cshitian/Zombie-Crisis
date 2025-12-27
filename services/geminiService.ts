@@ -12,6 +12,17 @@ if (key && key !== 'undefined' && key !== 'your_api_key_here') {
   });
 }
 
+const getLanguageName = (lang: string) => {
+  const code = lang.split('-')[0];
+  const names: Record<string, string> = {
+    'zh': 'Chinese (Simplified)',
+    'en': 'English',
+    'ja': 'Japanese',
+    'ko': 'Korean'
+  };
+  return names[code] || 'English';
+};
+
 export const generateRadioChatter = async (
   gameState: GameState, 
   location: Coordinates,
@@ -22,6 +33,7 @@ export const generateRadioChatter = async (
 
   const { healthyCount, infectedCount, soldierCount } = gameState;
   const loc = locationInfo || { name: i18n.t('unknown_area') };
+  const targetLang = getLanguageName(i18n.language);
   
   const envDetail = [
     loc.road ? `${i18n.t('prompt_road')}: ${loc.road}` : null,
@@ -38,7 +50,7 @@ export const generateRadioChatter = async (
   2. Tone must be realistic and immersive (tense, desperate, or cold military style).
   3. No generic templates. Mention specific environment details (e.g., "at the corner of ${loc.road || 'this street'}", "near ${loc.feature || 'building'}").
   4. Exactly 1 sentence, concise and powerful.
-  5. Output language: ${i18n.language}.`;
+  5. OUTPUT LANGUAGE: You MUST write the response in ${targetLang}.`;
 
   const eventPrompts = {
     START: i18n.t('prompt_event_start'),
@@ -52,7 +64,7 @@ export const generateRadioChatter = async (
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
-      contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n任务: ${eventPrompts[event]}` }] }]
+      contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nTask: ${eventPrompts[event]}` }] }]
     });
     return response.text?.trim() || i18n.t('signal_interference');
   } catch (error) {
@@ -74,6 +86,7 @@ export const generateTacticalAnalysis = async (
     };
   }
 
+  const targetLang = getLanguageName(i18n.language);
   const landmarks = nearbyFeatures.length > 0 ? nearbyFeatures.slice(0, 5).join(', ') : i18n.t('no_landmarks');
   const road = locationInfo?.road || i18n.t('unknown_street');
   const context = `${i18n.t('prompt_build_name')}: ${building.name}, ${i18n.t('prompt_type')}: ${building.type}, ${i18n.t('prompt_road')}: ${road}. ${i18n.t('prompt_landmarks')}: ${landmarks}.
@@ -88,12 +101,13 @@ export const generateTacticalAnalysis = async (
   2. Tactical Report: 1-2 sentences. Based on zombie/soldier counts, give direct military advice, using landmarks as defense lines or ambush points.
   
   Tone: Cold, professional, tech-heavy.
-  Language: ${i18n.language}. Output format must be JSON: {"survivalGuide": "...", "tacticalReport": "..."}`;
+  IMPORTANT: Both reports MUST be written in ${targetLang}.
+  Output format must be JSON with English keys: {"survivalGuide": "...", "tacticalReport": "..."}`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
-      contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n当前上下文: ${context}` }] }],
+      contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nContext: ${context}` }] }],
       // @ts-ignore - The SDK types use responseMimeType but some environments/versions of Gemini 2.0 require response_mime_type at runtime for JSON mode
       config: { response_mime_type: "application/json" }
     });
