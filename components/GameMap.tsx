@@ -1874,17 +1874,17 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                       icon={L.divIcon({
                           className: 'bg-transparent',
                           html: `
-                              <div class="flex flex-col items-center justify-center">
-                                     <div class="absolute top-0 right-0 bg-red-600 text-white px-3 py-1 text-xs font-bold animate-blink">
+                              <div class="flex flex-col items-center justify-center gap-2 w-full h-full">
+                                     <div class="bg-red-600 text-white px-4 py-1.5 text-xl font-black rounded shadow-xl animate-pulse">
                                        ${remaining}${i18n.t('sec_suffix')}
                                      </div>
-                                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-500 font-bold whitespace-nowrap text-sm animate-pulse">
+                                     <div class="text-red-500 font-black whitespace-nowrap text-lg drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-pulse">
                                        ${i18n.t('warning_airstrike')}
                                      </div>
                               </div>
                           `,
-                          iconSize: [120, 60],
-                          iconAnchor: [60, 30]
+                          iconSize: [200, 100],
+                          iconAnchor: [100, 50]
                       })}
                       interactive={false}
                   />
