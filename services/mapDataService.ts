@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 import { Coordinates, Building } from '../types';
 
 interface CacheEntry {
@@ -166,7 +167,7 @@ export const mapDataService = {
           id: `building-${e.id}`,
           geometry: e.geometry.map((pt: any) => ({ lat: pt.lat, lng: pt.lon })),
           tags: e.tags || {},
-          name: e.tags?.name || e.tags?.['name:zh'] || e.tags?.['name:en'] || '普通建筑',
+          name: e.tags?.[`name:${i18n.language.split('-')[0]}`] || e.tags?.name || e.tags?.['name:zh'] || e.tags?.['name:en'] || 'Building',
           type: e.tags?.building || 'building'
         }));
         

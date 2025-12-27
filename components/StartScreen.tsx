@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Coordinates } from '../types';
 import { mapDataService } from '../services/mapDataService';
 import { audioService } from '../services/audioService';
@@ -11,6 +12,7 @@ interface StartScreenProps {
 type InputMode = 'CITY' | 'COORD';
 
 const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
+  const { t, i18n } = useTranslation();
   const [showWarZonePanel, setShowWarZonePanel] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>('CITY');
   const [citySearch, setCitySearch] = useState('');
@@ -22,7 +24,16 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  const languages = [
+    { code: 'zh', name: '简体中文' },
+    { code: 'en', name: 'English' },
+    { code: 'ja', name: '日本語' },
+    { code: 'ko', name: '한국어' },
+  ];
 
   useEffect(() => {
     if (citySearch.length > 1 && !selectedCity) {
@@ -38,11 +49,14 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
     }
   }, [citySearch, selectedCity]);
 
-  // Handle click outside to close dropdown
+  // Handle click outside to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setIsLangDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -58,7 +72,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
       },
       (err) => {
         console.error("定位失败", err);
-        // 默认北京
+        // Default to Beijing
         onStartGame({ lat: 39.9042, lng: 116.4074 }); 
       }
     );
@@ -82,12 +96,12 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
         if (locationInfo && locationInfo.isUrban) {
           onStartGame(coords);
         } else {
-          setVerificationError("未发现可用战区：该坐标位于非城市区域（荒野、高山或海域），无法建立战术据场。");
+          setVerificationError(t('urban_error'));
           audioService.playSound(SoundType.UI_ERROR);
         }
       } catch (error) {
         console.error("验证战区失败", error);
-        setVerificationError("卫星链路连接超时：未能确认该区域的地理特征。");
+        setVerificationError(t('link_error'));
       } finally {
         setIsVerifying(false);
       }
@@ -106,6 +120,12 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
     setCitySearch(e.target.value);
     if (selectedCity) setSelectedCity(null);
     setVerificationError(null);
+  };
+
+  const changeLanguage = (code: string) => {
+    i18n.changeLanguage(code);
+    setIsLangDropdownOpen(false);
+    audioService.playSound(SoundType.UI_SELECT);
   };
 
   const isLatValid = (val: string) => {
@@ -129,11 +149,11 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
           <div className="w-64 h-1 bg-gray-800 rounded-full overflow-hidden mb-6">
             <div className="h-full bg-blue-500 animate-[loading-bar_2s_infinite]"></div>
           </div>
-          <div className="text-xl font-bold tracking-widest text-blue-400 animate-pulse uppercase">
-            正在扫描卫星地图 / 正在搜索战区...
+          <div className="text-xl font-bold tracking-widest text-blue-400 animate-pulse uppercase text-center px-4">
+            {t('scanning_sat')}
           </div>
           <div className="mt-4 text-[10px] font-mono text-gray-500 uppercase tracking-widest">
-            SYNCHRONIZING WITH GLOBAL GRID SYSTEM
+            {t('sync_grid')}
           </div>
           <style>{`
             @keyframes loading-bar {
@@ -158,31 +178,57 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
       <div className="absolute bottom-10 left-10 w-20 h-20 border-b-2 border-l-2 border-blue-500/30"></div>
       <div className="absolute bottom-10 right-10 w-20 h-20 border-b-2 border-r-2 border-blue-500/30"></div>
 
-      {/* 右上角版本和 GitHub 链接 */}
-      <div className="absolute top-6 right-8 flex items-center space-x-4 z-[1100]">
-        <a 
-          href="https://github.com/CyberPoincare/Zombie-Crisis" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-gray-500 hover:text-white transition-colors duration-300 transform hover:scale-110"
-          title="访问 GitHub 仓库"
-        >
-          <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-            <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
-          </svg>
-        </a>
-        <div className="px-3 py-1 bg-blue-900/30 border border-blue-500/50 rounded text-blue-400 font-mono text-xs tracking-wider">
-          版本 1.4.0
+      {/* 右上角版本、语言切换和 GitHub 链接 */}
+      <div className="absolute top-6 right-8 flex flex-col items-end space-y-4 z-[1100]">
+        <div className="flex items-center space-x-4">
+            {/* Language Selection */}
+            <div className="relative" ref={langDropdownRef}>
+                <button 
+                  onClick={() => { setIsLangDropdownOpen(!isLangDropdownOpen); audioService.playSound(SoundType.UI_CLICK); }}
+                  className="px-3 py-1 bg-slate-800/80 border border-slate-600 rounded text-slate-300 font-bold text-xs tracking-wider flex items-center gap-2 hover:bg-slate-700 hover:border-blue-500/50 transition-all"
+                >
+                    <span className="text-[14px]">🌐</span> {languages.find(l => l.code === i18n.language.split('-')[0])?.name || t('language')}
+                    <span className={`transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                {isLangDropdownOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-32 bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-lg shadow-2xl overflow-hidden divide-y divide-slate-800">
+                        {languages.map(lang => (
+                            <button 
+                              key={lang.code}
+                              onClick={() => changeLanguage(lang.code)}
+                              className={`w-full px-4 py-2 text-left text-xs font-bold hover:bg-blue-600/30 transition-colors ${i18n.language.startsWith(lang.code) ? 'text-blue-400 bg-blue-600/10' : 'text-slate-400'}`}
+                            >
+                                {lang.name}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <a 
+            href="https://github.com/CyberPoincare/Zombie-Crisis" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-gray-500 hover:text-white transition-colors duration-300 transform hover:scale-110"
+            title={t('github_title')}
+            >
+            <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+            </a>
+            <div className="px-3 py-1 bg-blue-900/30 border border-blue-500/50 rounded text-blue-400 font-mono text-xs tracking-wider">
+            {t('version')} 1.4.0
+            </div>
         </div>
       </div>
 
       {/* 标题 */}
       <div className="relative mb-12 text-center">
-        <h1 className="text-8xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] uppercase">
-          僵尸危机
+        <h1 className="text-8xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] uppercase px-4 text-center">
+          {t('title')}
         </h1>
         <div className="mt-4 text-blue-400 font-mono tracking-[0.3em] text-lg uppercase opacity-90">
-          战术生存模拟系统
+          {t('subtitle')}
         </div>
       </div>
 
@@ -196,7 +242,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
               className="group relative w-full py-8 bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/40 transition-all overflow-hidden"
             >
               <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-              <span className="text-2xl font-bold tracking-[0.2em]">直接接入附近战场</span>
+              <span className="text-2xl font-bold tracking-[0.2em]">{t('start_nearby')}</span>
             </button>
 
             <button
@@ -204,19 +250,19 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
               className="group relative w-full py-8 bg-gray-800/40 border border-gray-700 hover:border-blue-500/50 transition-all"
             >
               <span className="text-2xl font-bold tracking-[0.2em] text-gray-300 group-hover:text-white">
-                选择作战战区
+                {t('select_warzone')}
               </span>
             </button>
           </>
         ) : (
           <div className="bg-gray-800/90 backdrop-blur-xl border border-gray-700 p-10 space-y-8 animate-in fade-in zoom-in duration-300 shadow-2xl">
             <div className="flex justify-between items-center border-b border-gray-700 pb-6">
-                <h2 className="text-2xl font-bold tracking-widest text-blue-400">战区部署</h2>
+                <h2 className="text-2xl font-bold tracking-widest text-blue-400 uppercase">{t('warzone_deployment')}</h2>
                 <button 
                   onClick={() => setShowWarZonePanel(false)}
                   className="text-gray-500 hover:text-white transition-colors text-lg"
                 >
-                    返回
+                    {t('back')}
                 </button>
             </div>
 
@@ -233,7 +279,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${inputMode === 'CITY' ? 'border-blue-500 bg-blue-500/20' : 'border-gray-600'}`}>
                             {inputMode === 'CITY' && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>}
                         </div>
-                        <span className={`ml-3 text-sm font-bold tracking-widest transition-colors ${inputMode === 'CITY' ? 'text-blue-400' : 'text-gray-500 group-hover:text-gray-300'}`}>城市搜索</span>
+                        <span className={`ml-3 text-sm font-bold tracking-widest transition-colors ${inputMode === 'CITY' ? 'text-blue-400' : 'text-gray-500 group-hover:text-gray-300'}`}>{t('city_search')}</span>
                     </label>
 
                     <label className="flex items-center cursor-pointer group">
@@ -246,19 +292,19 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${inputMode === 'COORD' ? 'border-blue-500 bg-blue-500/20' : 'border-gray-600'}`}>
                             {inputMode === 'COORD' && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>}
                         </div>
-                        <span className={`ml-3 text-sm font-bold tracking-widest transition-colors ${inputMode === 'COORD' ? 'text-blue-400' : 'text-gray-500 group-hover:text-gray-300'}`}>经纬度输入</span>
+                        <span className={`ml-3 text-sm font-bold tracking-widest transition-colors ${inputMode === 'COORD' ? 'text-blue-400' : 'text-gray-500 group-hover:text-gray-300'}`}>{t('coord_input')}</span>
                     </label>
                 </div>
 
                 {inputMode === 'CITY' ? (
                   <div className="relative" ref={dropdownRef}>
-                      <label className="block text-xs font-bold text-gray-500 mb-2 tracking-widest">目标城市</label>
+                      <label className="block text-xs font-bold text-gray-500 mb-2 tracking-widest uppercase">{t('target_city_label')}</label>
                       <input 
                         type="text"
                         value={citySearch}
                         onChange={handleCityInputChange}
                         onFocus={() => searchResults.length > 0 && setIsDropdownOpen(true)}
-                        placeholder="输入城市名称实时匹配..."
+                        placeholder={t('city_placeholder')}
                         className="w-full bg-black/60 border border-gray-700 p-4 text-base focus:border-blue-500 outline-none transition-all placeholder:text-gray-600"
                       />
                       {isDropdownOpen && (
@@ -270,21 +316,21 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
                                     className="p-4 text-sm hover:bg-blue-600/30 cursor-pointer transition-colors group flex items-center justify-between"
                                   >
                                       <span className="text-gray-300 group-hover:text-white">{res.name}</span>
-                                      <span className="text-[10px] font-mono text-gray-600 group-hover:text-blue-400">SELECT</span>
+                                      <span className="text-[10px] font-mono text-gray-600 group-hover:text-blue-400">{t('select')}</span>
                                   </div>
                               ))}
                           </div>
                       )}
                       {selectedCity && (
                           <div className="mt-3 flex items-center text-xs text-blue-400 animate-pulse">
-                              <span className="mr-1">⦿</span> 目标已确认：{selectedCity.name}
+                              <span className="mr-1">⦿</span> {t('city_selected', { name: selectedCity.name })}
                           </div>
                       )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-8 animate-in slide-in-from-top-2 duration-300">
                       <div className="space-y-2">
-                          <label className="block text-xs font-bold text-gray-500 tracking-widest uppercase">纬度 (LAT)</label>
+                          <label className="block text-xs font-bold text-gray-500 tracking-widest uppercase">{t('lat_label')}</label>
                           <input 
                             type="text"
                             value={lat}
@@ -292,10 +338,10 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
                             placeholder="31.2304"
                             className={`w-full bg-black/60 border p-4 text-base outline-none transition-all ${lat && !isLatValid(lat) ? 'border-red-500/50 text-red-400' : 'border-gray-700 focus:border-blue-500'}`}
                           />
-                          <p className="text-[10px] text-gray-600">-90 到 90</p>
+                          <p className="text-[10px] text-gray-600">-90 {t('to')} 90</p>
                       </div>
                       <div className="space-y-2">
-                          <label className="block text-xs font-bold text-gray-500 tracking-widest uppercase">经度 (LNG)</label>
+                          <label className="block text-xs font-bold text-gray-500 tracking-widest uppercase">{t('lng_label')}</label>
                           <input 
                             type="text"
                             value={lng}
@@ -303,7 +349,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
                             placeholder="121.4737"
                             className={`w-full bg-black/60 border p-4 text-base outline-none transition-all ${lng && !isLngValid(lng) ? 'border-red-500/50 text-red-400' : 'border-gray-700 focus:border-blue-500'}`}
                           />
-                          <p className="text-[10px] text-gray-600">-180 到 180</p>
+                          <p className="text-[10px] text-gray-600">-180 {t('to')} 180</p>
                       </div>
                   </div>
                 )}
@@ -311,7 +357,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
                 {verificationError && (
                   <div className="p-4 bg-red-900/30 border border-red-500/50 text-red-200 text-xs leading-relaxed animate-in slide-in-from-bottom-2 duration-300">
                     <div className="flex items-center mb-1 font-bold text-red-400">
-                        <span className="mr-2">⚠</span> 部署失败 / DEPLOYMENT FAILED
+                        <span className="mr-2">⚠</span> {t('deploy_failed')}
                     </div>
                     {verificationError}
                   </div>
@@ -327,7 +373,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
                   }`}
                 >
                     {canStart && <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20 animate-pulse"></div>}
-                    进入战区
+                    {t('enter_warzone')}
                 </button>
             </div>
           </div>
@@ -337,8 +383,8 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
       {/* 底部信息 */}
       <div className="absolute bottom-10 text-center text-xs font-mono text-gray-600 uppercase tracking-[0.2em] space-y-2">
         <div className="flex items-center justify-center space-x-4">
-            <span className="flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 animate-ping"></span>系统状态：正常运行</span>
-            <span className="flex items-center"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>卫星链路：稳定</span>
+            <span className="flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 animate-ping"></span>{t('sys_status')}</span>
+            <span className="flex items-center"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>{t('sat_link')}</span>
         </div>
       </div>
     </div>

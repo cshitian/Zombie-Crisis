@@ -102,37 +102,37 @@ export const WEAPON_STATS = {
     range: 0.0005,
     damage: 4,
     color: '#FBBF24', 
-    name: 'M1911手枪',
-    description: '近距离自卫武器'
+    nameKey: 'weapons.pistol',
+    descKey: 'weapons.pistol_desc'
   },
   [WeaponType.SHOTGUN]: {
     range: 0.0004,
     damage: 15,
     color: '#F97316', 
-    name: '雷明顿霰弹枪',
-    description: '近战高伤害面杀伤'
+    nameKey: 'weapons.shotgun',
+    descKey: 'weapons.shotgun_desc'
   },
   [WeaponType.SNIPER]: {
     range: 0.0018, // Significantly increased range
     damage: 20, 
     color: '#FFFFFF', 
-    name: 'AWM狙击步枪',
-    description: '超远距离精准打击'
+    nameKey: 'weapons.sniper',
+    descKey: 'weapons.sniper_desc'
   },
   [WeaponType.ROCKET]: {
     range: 0.0008,
     damage: 25,
     splashRadius: 0.0004,
     color: '#EF4444', 
-    name: 'AT4火箭筒',
-    description: '范围无差别杀伤 (限3发)'
+    nameKey: 'weapons.rocket',
+    descKey: 'weapons.rocket_desc'
   },
   [WeaponType.NET_GUN]: {
     range: 0.0006,
     damage: 0, // No damage
     color: '#2DD4BF', // Teal
-    name: '高强度网枪',
-    description: '困住僵尸30秒'
+    nameKey: 'weapons.net_gun',
+    descKey: 'weapons.net_gun_desc'
   }
 };
 
@@ -147,82 +147,4 @@ export const WEAPON_SYMBOLS = {
 export const DEFAULT_LOCATION = {
   lat: 40.7580,
   lng: -73.9855
-};
-
-export const CHINESE_SURNAMES = [
-  '李', '王', '张', '刘', '陈', '杨', '赵', '黄', '周', '吴',
-  '徐', '孙', '胡', '朱', '高', '林', '何', '郭', '马', '罗'
-];
-
-export const CHINESE_GIVEN_NAMES_MALE = [
-  '伟', '强', '磊', '洋', '勇', '军', '杰', '涛', '明', '刚',
-  '平', '辉', '鹏', '华', '飞', '鑫', '波', '斌', '宇', '浩'
-];
-
-export const CHINESE_GIVEN_NAMES_FEMALE = [
-  '芳', '娜', '敏', '静', '秀', '娟', '英', '华', '慧', '巧',
-  '美', '兰', '霞', '玲', '燕', '萍', '雪', '琳', '洁', '梅'
-];
-
-export const THOUGHTS = {
-  CIVILIAN_CALM: [
-    "今天天气真不错", "晚饭吃什么呢？", "最近工作压力好大", "想喝杯奶茶", 
-    "刚才那个人好眼熟", "手机快没电了", "想回家睡觉", "这个周末去哪玩？"
-  ],
-  CIVILIAN_PANIC: [
-    "救命啊！", "那是什么鬼东西？！", "别过来！", "我要回家！", 
-    "警察在哪里？！", "我的腿在发抖...", "快跑！快跑！", "我不想死..."
-  ],
-  CIVILIAN_ARMED: [
-    "离我远点！", "我会开枪的！", "保护大家！", "跟它们拼了！", 
-    "瞄准头！", "为了生存！"
-  ],
-  CIVILIAN_MEMORIES: [
-    "不知道爸妈现在在哪...", "真怀念以前下班去喝杯咖啡的日子", "我的猫还在家里等着我喂它", 
-    "那是我的高中吗？怎么变成了这样...", "本来打算下个月去旅行的...", "我还没跟我爱的人告别"
-  ],
-  CIVILIAN_SURVIVAL: [
-    "肚子好饿，哪怕有一根火腿肠也好", "水快喝完了，得找地方补充", "这双鞋已经磨烂了，脚好痛", 
-    "哪里有收音机？我想听听外面的消息", "希望能撑到救援到来...", "我必须保持清醒"
-  ],
-  CIVILIAN_SEE_SOLDIER: [
-    "看！是部队！我们有救了！", "长官！请带我离开这儿！", "终于见到穿军装的人了...", "是特种部队吗？希望能挡住那些怪物。", "别走，等等我！"
-  ],
-  CIVILIAN_SEE_MEDIC: [
-    "那是救援队的医生吗？", "求你了，看看我的伤口...", "天使...真的是天使降临了。", "嘿！医生！这边有伤员！", "他们真的带血清来了吗？"
-  ],
-  CIVILIAN_SEE_ZOMBIE_CLOSE: [
-    "滚开！你这恶心的怪物！", "离我远点...求你了...", "我的天，他在吃人...", "救命！它快抓到我了！", "别过来...别过来！！"
-  ],
-  ZOMBIE: [
-    "饿...", "肉...", "血...", "吃...", "痛...", "吼..."
-  ],
-  ZOMBIE_TRAPPED: [
-    "吼！！！", "放开...", "挣扎...", "动不了..."
-  ],
-  SOLDIER: [
-    "保持队形！", "目标已锁定", "开火！", "清理区域", "确认击毙"
-  ],
-  MEDIC: [
-    "坚持住！", "我能治好你", "正在注射抗病毒血清...", "掩护我！", "不要乱动"
-  ],
-  FRIENDLY_FIRE: [
-    "停火！那是你的友军！", "注意你的射界，笨蛋！", "该死，我被自己人打了！", "各单位注意，发生误伤！", "谁在乱开火？！"
-  ],
-  SOLDIER_COMPLAINT: [
-    "真是个灾难，给这些平民发枪简直是自杀...", "嘿！看着点你的枪管，那是冲我飞过来的！", "指挥部，这些拿枪的平民比僵尸还危险...", 
-    "如果你拿不稳，就把枪还给我们专业人士！", "又是一个乱射的，我得离他远点。"
-  ],
-  ARMED_CIVILIAN: [
-    "我也能战斗了！指挥部听到吗？", "发现一个活死人，正在瞄准！", "为了我的家人，我不会退缩！", 
-    "这玩意后坐力真大，但我能行！", "有谁在频道里吗？我这边发现僵尸了！"
-  ],
-  CROSSING: [
-    "这儿地势不错，适合防守。", "这些断壁残垣...以前一定是座漂亮的建筑。", "嘿，小心头顶！", 
-    "这里面可能有物资。", "这个房间还没查过...", "感觉这些缝隙间不安全。",
-    "特种作战守则第一条：进入室内先清理死角。", "平民注意，紧跟专业人员，不要掉队！"
-  ],
-  CORPSE: [
-    "...", "（已死亡）", "...", "..."
-  ]
 };

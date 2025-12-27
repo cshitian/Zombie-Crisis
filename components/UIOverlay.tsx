@@ -1,5 +1,5 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GameState, RadioMessage, ToolType, EntityType, WeaponType, SoundType, Building } from '../types';
 import { GAME_CONSTANTS, WEAPON_STATS } from '../constants';
 import { audioService } from '../services/audioService';
@@ -19,6 +19,7 @@ interface UIOverlayProps {
 }
 
 const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedTool, onSelectTool, onTogglePause, onReset, onLocateEntity, followingEntityId, onToggleFollow, onAnalyzeBuilding, onScavengeBuilding }) => {
+  const { t, i18n } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [size, setSize] = useState({ width: 384, height: 224 });
@@ -134,45 +135,45 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
       const type = building.type.toLowerCase();
       if (type.includes('apartments') || type.includes('residential') || type.includes('house')) {
           return {
-              title: "生活居住区",
-              description: "由于分区密集，容易在室内发生近距离遭遇战。窗户较多，便于观察街道情报。",
-              pros: ["掩体丰富", "物资分散"],
-              cons: ["出口狭窄", "隔离度差"],
+              title: t('building_types.residential'),
+              description: t('building_analysis.residential_desc'),
+              pros: [t('building_analysis.pros.cover'), t('building_analysis.pros.resources')],
+              cons: [t('building_analysis.cons.narrow'), t('building_analysis.cons.isolation')],
               safety: "MEDIUM"
           };
       }
       if (type.includes('office') || type.includes('commercial') || type.includes('retail') || type.includes('mall')) {
           return {
-              title: "商业办公区",
-              description: "通常拥有开阔的大厅和复杂的通风系统。虽然视野好，但大面积的玻璃幕墙无法抵御炸弹冲击。",
-              pros: ["视野开阔", "转运空间大"],
-              cons: ["防御薄弱", "照明依赖电力"],
+              title: t('building_types.commercial'),
+              description: t('building_analysis.commercial_desc'),
+              pros: [t('building_analysis.pros.view'), t('building_analysis.pros.space')],
+              cons: [t('building_analysis.cons.weak_def'), t('building_analysis.cons.lighting')],
               safety: "LOW"
           };
       }
       if (type.includes('hospital') || type.includes('university') || type.includes('school')) {
           return {
-              title: "关键民生设施",
-              description: "战术价值高。可能存有医疗物资或收容大量幸存者。内部走廊长而笔直，适合火力覆盖。",
-              pros: ["高价值目标", "结构稳固"],
-              cons: ["僵尸富集区", "地形复杂"],
+              title: t('building_types.public'),
+              description: t('building_analysis.public_desc'),
+              pros: [t('building_analysis.pros.high_value'), t('building_analysis.pros.solid')],
+              cons: [t('building_analysis.cons.zombie_hotspot'), t('building_analysis.cons.complex')],
               safety: "HIGH"
           };
       }
       if (type.includes('industrial') || type.includes('factory') || type.includes('warehouse')) {
           return {
-              title: "工业仓储区",
-              description: "坚固的钢制建筑结构。非常适合作为临时避难所或武器库，但内部回声会导致枪声吸引更多感染者。",
-              pros: ["绝对掩护", "高度私密"],
-              cons: ["回声较大", "外部死角多"],
+              title: t('building_types.industrial'),
+              description: t('building_analysis.industrial_desc'),
+              pros: [t('building_analysis.pros.absolute_cover'), t('building_analysis.pros.privacy')],
+              cons: [t('building_analysis.cons.echo'), t('building_analysis.cons.blind_spots')],
               safety: "VERY HIGH"
           };
       }
       return {
-          title: "一般城市建筑",
-          description: "标准城市结构。在战术地图上并无特殊标注，可作为常规掩体使用。",
-          pros: ["通用掩护"],
-          cons: ["无特殊优势"],
+          title: t('building_types.general'),
+          description: t('building_analysis.general_desc'),
+          pros: [t('building_analysis.pros.general_cover')],
+          cons: [t('building_analysis.cons.no_advantage')],
           safety: "LOW"
       };
   };
@@ -193,7 +194,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
           <div className="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-4">
               <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                  <h3 className="text-[10px] font-black text-yellow-500 tracking-[0.2em] uppercase">建筑战术识别</h3>
+                  <h3 className="text-[10px] font-black text-yellow-500 tracking-[0.2em] uppercase">{t('building_inspector')}</h3>
               </div>
               <span className="text-[9px] font-mono text-slate-500">ID: {b.id.split('-')[1]}</span>
           </div>
@@ -209,7 +210,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                         analysis.safety === 'MEDIUM' ? 'text-yellow-400 bg-yellow-400/10' :
                         'text-red-400 bg-red-400/10'
                       }`}>
-                          安全性预估: {analysis.safety}
+                          {t('safety_estimate')}: {analysis.safety}
                       </span>
                   </div>
               </div>
@@ -223,7 +224,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
 
               <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                      <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">战术优势 (Pros)</div>
+                      <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">{t('tactical_pros')}</div>
                       <div className="space-y-1">
                           {analysis.pros.map((p, i) => (
                               <div key={i} className="text-[10px] text-slate-300 flex items-center gap-1.5 line-clamp-1">
@@ -233,7 +234,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                       </div>
                   </div>
                   <div className="space-y-1.5">
-                      <div className="text-[9px] font-bold text-red-400 uppercase tracking-tighter">战术缺陷 (Cons)</div>
+                      <div className="text-[9px] font-bold text-red-400 uppercase tracking-tighter">{t('tactical_cons')}</div>
                       <div className="space-y-1">
                           {analysis.cons.map((c, i) => (
                               <div key={i} className="text-[10px] text-slate-300 flex items-center gap-1.5 line-clamp-1">
@@ -255,7 +256,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                         : 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20 active:scale-95 shadow-[0_0_15px_rgba(234,179,8,0.1)]'
                     }`}
                   >
-                      {isAnalyzing ? '🛰️ 深度扫描中...' : (onCooldown ? `🛰️ 扫描冷却中 (${remaining}s)` : '🤖 发起深度战术分析')}
+                      {isAnalyzing ? t('scanning') : (onCooldown ? t('cooldown', { s: remaining }) : t('start_tactical'))}
                   </button>
 
                   {b.analysis && (
@@ -277,15 +278,15 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                                               : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
                                           }`}
                                       >
-                                          {sOnCooldown ? `📦 搜寻资源中 (${sRemaining}s)` : '📦 搜寻可用资源'}
+                                          {sOnCooldown ? t('scavenging', { s: sRemaining }) : t('scavenge_resources')}
                                       </button>
                                   );
                               })()}
                           </div>
 
-                          <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg space-y-2">
+                           <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg space-y-2">
                               <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">生存指南 (SURVIVAL GUIDE)</span>
+                                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{t('survival_guide')}</span>
                               </div>
                               <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
                                   {b.analysis.survivalGuide}
@@ -294,13 +295,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
 
                           <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-lg space-y-2">
                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">实战报告 (TACTICAL REPORT)</span>
+                                  <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">{t('tactical_report')}</span>
                               </div>
                               <p className="text-[11px] text-slate-300 leading-relaxed font-medium italic">
                                   {b.analysis.tacticalReport}
                               </p>
                               <div className="flex justify-between items-center pt-1 border-t border-slate-700/50">
-                                  <span className="text-[9px] font-mono text-slate-400">区域侦测:</span>
+                                  <span className="text-[9px] font-mono text-slate-400">{t('area_detection')}:</span>
                                   <div className="flex gap-2 text-[9px] font-mono">
                                       <span className="text-red-400">Z:{b.analysis.nearbyStats.zombies}</span>
                                       <span className="text-blue-400">S:{b.analysis.nearbyStats.soldiers}</span>
@@ -324,15 +325,15 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
           return (
             <div className="absolute top-28 right-4 w-64 bg-slate-900/95 backdrop-blur-xl border border-slate-600 rounded-xl p-4 shadow-2xl z-30 pointer-events-auto grayscale">
                 <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-3">
-                    <h3 className="text-sm font-bold text-slate-400 tracking-wider uppercase">目标已确认死亡</h3>
+                    <h3 className="text-sm font-bold text-slate-400 tracking-wider uppercase">{t('deceased')}</h3>
                     <div className="w-3 h-3 bg-slate-600 rounded-sm rotate-45"></div>
                 </div>
                 <div className="space-y-2 opacity-70">
                     <div className="flex justify-between items-end">
                         <span className="text-2xl font-black text-slate-300 line-through">{ent.name}</span>
-                        <span className="text-xs text-slate-500 mb-1">{ent.gender} / {ent.age}岁</span>
+                        <span className="text-xs text-slate-500 mb-1">{t(ent.isMale ? 'gender_m' : 'gender_f')} / {ent.age}{t('age_suffix')}</span>
                     </div>
-                    <div className="text-xs text-slate-500 italic">尸体 (DECEASED)</div>
+                    <div className="text-xs text-slate-500 italic">{t('corpse')}</div>
                 </div>
             </div>
           );
@@ -342,7 +343,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
         <div className="absolute top-28 right-4 w-64 bg-slate-900/95 backdrop-blur-xl border border-slate-500/50 rounded-xl p-4 shadow-2xl z-30 pointer-events-auto transition-all duration-200 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-700 pb-2 mb-3">
                 <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white tracking-wider uppercase">个体信息识别</h3>
+                    <h3 className="text-sm font-bold text-white tracking-wider uppercase">{t('entity_inspector')}</h3>
                     <div className={`w-3 h-3 rounded-full animate-pulse ${ent.type === EntityType.ZOMBIE ? 'bg-red-500' : ent.type === EntityType.SOLDIER ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
                 </div>
                 <button 
@@ -352,24 +353,24 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                     ? 'bg-blue-500 border-blue-400 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]' 
                     : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500'
                   }`}
-                  title={followingEntityId === ent.id ? "取消跟踪" : "开启镜头跟踪"}
+                  title={followingEntityId === ent.id ? t('following') : t('follow')}
                 >
-                  {followingEntityId === ent.id ? "🛰️ 正在跟踪" : "🎥 镜头跟踪"}
+                  {followingEntityId === ent.id ? t('following') : t('follow')}
                 </button>
             </div>
             
             <div className="space-y-2">
                 <div className="flex justify-between items-end">
                     <span className="text-2xl font-black text-white">{ent.name}</span>
-                    <span className="text-xs text-slate-400 mb-1">{ent.gender} / {ent.age}岁</span>
+                    <span className="text-xs text-slate-400 mb-1">{t(ent.isMale ? 'gender_m' : 'gender_f')} / {ent.age}{t('age_suffix')}</span>
                 </div>
                 
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold bg-slate-800 px-2 py-0.5 rounded text-slate-300">
-                        {ent.type === EntityType.ZOMBIE ? '已感染 (ZOMBIE)' : ent.type === EntityType.SOLDIER ? '特种兵 (SPEC OPS)' : '平民 (CIVILIAN)'}
+                        {ent.type === EntityType.ZOMBIE ? t('type_zombie') : ent.type === EntityType.SOLDIER ? t('type_soldier') : t('type_civilian')}
                     </span>
-                    {ent.isMedic && <span className="text-[10px] font-bold bg-white text-red-600 px-2 py-0.5 rounded">医疗兵</span>}
-                    {ent.isTrapped && <span className="text-[10px] font-bold bg-cyan-500 text-black px-2 py-0.5 rounded animate-pulse">被困 ({(ent.trappedTimer/1000).toFixed(1)}s)</span>}
+                    {ent.isMedic && <span className="text-[10px] font-bold bg-white text-red-600 px-2 py-0.5 rounded">{t('medic')}</span>}
+                    {ent.isTrapped && <span className="text-[10px] font-bold bg-cyan-500 text-black px-2 py-0.5 rounded animate-pulse">{t('trapped', { s: (ent.trappedTimer/1000).toFixed(1) })}</span>}
                 </div>
 
                 {ent.isArmed && getWeaponInfo(ent) && (
@@ -385,7 +386,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                 {/* Health Bar */}
                 <div className="mt-2">
                     <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                        <span>生命值</span>
+                        <span>{t('health')}</span>
                         <span>{Math.max(0, Math.floor(ent.health))}</span>
                     </div>
                     <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -413,7 +414,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
         <div className="flex justify-between items-center gap-2">
              <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
                 <h1 className="text-lg md:text-2xl font-black text-white tracking-tight md:tracking-widest italic drop-shadow-md whitespace-nowrap">
-                僵尸危机 <span className="text-red-500">行动代号Z</span>
+                 {t('title')} <span className="text-red-500">{t('op_code_z')}</span>
                 </h1>
                 <button 
                     onClick={() => { audioService.playSound(SoundType.UI_CLICK); onTogglePause(); }}
@@ -425,7 +426,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                         }
                     `}
                 >
-                    {gameState.isPaused ? "⏸ 暂停" : "▶ 运行"}
+                     {gameState.isPaused ? `⏸ ${t('paused')}` : `▶ ${t('running')}`}
                 </button>
              </div>
              <div className="flex items-center gap-2 md:gap-3 bg-slate-800 px-2 md:px-4 py-1 md:py-1.5 rounded-lg border border-slate-600 shadow-inner shrink-0">
@@ -442,7 +443,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                     </svg>
                 </a>
                 <div className="w-px h-4 bg-slate-600 mx-1 hidden xs:block"></div>
-                <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-wider hidden xs:inline">预算资金</span>
+                 <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-wider hidden xs:inline">{t('budget')}</span>
                 <span className={`${gameState.resources < 50 ? 'text-red-500 animate-pulse' : 'text-yellow-400'} font-mono font-bold text-base md:text-xl`}>${Math.floor(gameState.resources)}</span>
              </div>
         </div>
@@ -455,9 +456,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                 <div className="h-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)] transition-all duration-500" style={{width: `${pctInfected}%`}} />
             </div>
             <div className="flex justify-between text-[10px] font-bold tracking-widest uppercase">
-                <span className="text-emerald-400 drop-shadow-sm">幸存者: {gameState.healthyCount}</span>
-                <span className="text-blue-400 drop-shadow-sm">作战部队: {gameState.soldierCount}</span>
-                <span className="text-red-500 drop-shadow-sm">感染者: {gameState.infectedCount}</span>
+                 <span className="text-emerald-400 drop-shadow-sm">{t('survivors')}: {gameState.healthyCount}</span>
+                 <span className="text-blue-400 drop-shadow-sm">{t('soldiers')}: {gameState.soldierCount}</span>
+                 <span className="text-red-500 drop-shadow-sm">{t('infected')}: {gameState.infectedCount}</span>
             </div>
         </div>
       </div>
@@ -473,19 +474,18 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
          <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center pointer-events-auto z-50 animate-fade-in">
             <div className={`border-4 p-8 rounded-2xl text-center max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-slate-800 ${gameState.gameResult === 'VICTORY' ? 'border-emerald-500 shadow-emerald-900/20' : 'border-red-600 shadow-red-900/20'}`}>
                 <h2 className={`text-6xl font-black mb-2 tracking-tighter ${gameState.gameResult === 'VICTORY' ? 'text-emerald-500' : 'text-red-600'}`}>
-                    {gameState.gameResult === 'VICTORY' ? '行动成功' : '行动失败'}
+                     {gameState.gameResult === 'VICTORY' ? t('victory') : t('defeat')}
                 </h2>
                 <div className="h-1 w-24 mx-auto bg-slate-600 mb-6 rounded-full"></div>
                 <p className="text-slate-300 mb-8 text-lg font-medium leading-relaxed">
-                    {gameState.gameResult === 'VICTORY' 
-                        ? "该区域已被净化。文明得以存续。" 
-                        : "防线崩溃。该区域已沦陷。"}
+                    {gameState.gameResult === 'VICTORY'                         ? t('victory_msg') 
+                         : t('defeat_msg')}
                 </p>
                 <button 
                   onClick={() => { audioService.playSound(SoundType.UI_CLICK); onReset(); }}
                   className="bg-white hover:bg-slate-200 text-slate-900 font-black py-4 px-10 rounded-xl transition-all transform hover:scale-105 uppercase tracking-widest shadow-lg"
                 >
-                    重新部署
+                     {t('redeploy')}
                 </button>
             </div>
          </div>
@@ -515,16 +515,16 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
 
               <h3 className="text-[10px] font-bold text-emerald-500 uppercase mb-3 tracking-widest flex items-center gap-2 border-b border-slate-700 pb-2 shrink-0">
                   <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></span>
-                  实时通讯频道
+                   {t('radio_channel')}
               </h3>
               <div ref={scrollRef} onScroll={handleScroll} className="overflow-y-auto flex-1 space-y-3 pr-2 text-xs font-mono leading-relaxed">
-                  {radioLogs.length === 0 && <span className="text-slate-600 italic">正在建立连接...</span>}
+                   {radioLogs.length === 0 && <span className="text-slate-600 italic">{t('establishing_link')}</span>}
                   {radioLogs.map(log => (
                       <div key={log.id} className="flex gap-2 animate-fade-in">
                           <span className="text-slate-500 shrink-0">[{new Date(log.timestamp).toLocaleTimeString([], {hour12: false, hour:'2-digit', minute:'2-digit'})}]</span> 
                           <div>
                               <span 
-                                className={`font-bold mr-2 transition-all ${log.senderId ? 'cursor-pointer hover:underline hover:brightness-125' : ''} ${log.sender === '指挥部' ? 'text-yellow-500' : log.sender === '系统' ? 'text-red-400' : 'text-blue-400'}`}
+                                className={`font-bold mr-2 transition-all ${log.senderId ? 'cursor-pointer hover:underline hover:brightness-125' : ''} ${log.sender === t('headquarters') ? 'text-yellow-500' : log.sender === t('system') ? 'text-red-400' : 'text-blue-400'}`}
                                 onClick={() => log.senderId && onLocateEntity(log.senderId)}
                               >
                                   {log.sender}:
@@ -546,7 +546,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
                     }}
                     className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-blue-600/90 text-white text-[10px] px-3 py-1 rounded-full shadow-lg border border-blue-400 animate-bounce transition-all hover:bg-blue-500"
                   >
-                      ⬇ 有新消息
+                       ⬇ {t('new_messages')}
                   </button>
               )}
           </div>
@@ -557,8 +557,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
         <div className="flex gap-3 justify-center lg:justify-end min-w-max px-4 py-2">
             <ToolButton 
                 icon="🖐️" 
-                line1="观察"
-                line2="移动"
+                 line1={t('observe')}
+                 line2={t('move')}
                 cost={0} 
                 cooldownEnd={0}
                 isActive={selectedTool === ToolType.NONE} 
@@ -566,8 +566,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
             />
             <ToolButton 
                 icon="📦" 
-                line1="空投"
-                line2="武器"
+                 line1={t('air_drop_1')}
+                 line2={t('air_drop_2')}
                 cost={GAME_CONSTANTS.COST_SUPPLY} 
                 cooldownEnd={gameState.cooldowns[ToolType.SUPPLY_DROP] || 0}
                 isActive={selectedTool === ToolType.SUPPLY_DROP} 
@@ -575,8 +575,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
             />
             <ToolButton 
                 icon="🚁" 
-                line1="特种" 
-                line2="突击队"
+                 line1={t('spec_ops_1')} 
+                 line2={t('spec_ops_2')}
                 cost={GAME_CONSTANTS.COST_SPEC_OPS} 
                 cooldownEnd={gameState.cooldowns[ToolType.SPEC_OPS] || 0}
                 isActive={selectedTool === ToolType.SPEC_OPS} 
@@ -584,8 +584,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
             />
             <ToolButton 
                 icon="💉" 
-                line1="医疗" 
-                line2="小组"
+                 line1={t('medic_1')} 
+                 line2={t('medic_2')}
                 cost={GAME_CONSTANTS.COST_MEDIC} 
                 cooldownEnd={gameState.cooldowns[ToolType.MEDIC_TEAM] || 0}
                 isActive={selectedTool === ToolType.MEDIC_TEAM} 
@@ -593,8 +593,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, radioLogs, selectedToo
             />
             <ToolButton 
                 icon="✈️" 
-                line1="精确"
-                line2="空袭"
+                 line1={t('airstrike_1')}
+                 line2={t('airstrike_2')}
                 cost={GAME_CONSTANTS.COST_AIRSTRIKE} 
                 cooldownEnd={gameState.cooldowns[ToolType.AIRSTRIKE] || 0}
                 isActive={selectedTool === ToolType.AIRSTRIKE} 

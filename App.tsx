@@ -109,60 +109,62 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-screen bg-gray-900 overflow-hidden">
-      {showStartScreen ? (
-        <StartScreen onStartGame={handleStartGame} />
-      ) : (
-        <>
-          <GameMap 
-            key={gameId} 
-            ref={gameMapRef}
-            selectedTool={selectedTool}
-            onSelectTool={setSelectedTool}
-            isPaused={gameState.isPaused}
-            initialState={gameState}
-            onUpdateState={handleStateUpdate}
-            onAddLog={handleAddLog}
-            selectedEntityId={selectedEntityId}
-            onEntitySelect={(id) => {
-                setSelectedEntityId(id);
-                if (id) setSelectedBuildingId(null);
-            }}
-            selectedBuildingId={selectedBuildingId}
-            onBuildingSelect={(id) => {
-                setSelectedBuildingId(id);
-                if (id) setSelectedEntityId(null);
-            }}
-            followingEntityId={followingEntityId}
-            onCancelFollow={() => setFollowingEntityId(null)}
-            initialCenter={initialCenter}
-          />
-          
-          <UIOverlay 
-            gameState={gameState}
-            radioLogs={radioLogs}
-            selectedTool={selectedTool}
-            onSelectTool={setSelectedTool}
-            onTogglePause={togglePause}
-            onReset={handleResetGame}
-            onLocateEntity={(id) => { 
-                setFollowingEntityId(id); 
-                setSelectedEntityId(id); 
-            }}
-            followingEntityId={followingEntityId}
-            onToggleFollow={(id) => {
-                setFollowingEntityId(prev => prev === id ? null : id);
-            }}
-            onAnalyzeBuilding={(id) => {
-                gameMapRef.current?.analyzeBuilding(id);
-            }}
-            onScavengeBuilding={(id) => {
-                gameMapRef.current?.scavengeBuilding(id);
-            }}
-          />
-        </>
-      )}
-    </div>
+    <React.Suspense fallback={<div className="w-full h-screen bg-gray-900" />}>
+      <div className="relative w-full h-screen bg-gray-900 overflow-hidden">
+        {showStartScreen ? (
+          <StartScreen onStartGame={handleStartGame} />
+        ) : (
+          <>
+            <GameMap 
+              key={gameId} 
+              ref={gameMapRef}
+              selectedTool={selectedTool}
+              onSelectTool={setSelectedTool}
+              isPaused={gameState.isPaused}
+              initialState={gameState}
+              onUpdateState={handleStateUpdate}
+              onAddLog={handleAddLog}
+              selectedEntityId={selectedEntityId}
+              onEntitySelect={(id) => {
+                  setSelectedEntityId(id);
+                  if (id) setSelectedBuildingId(null);
+              }}
+              selectedBuildingId={selectedBuildingId}
+              onBuildingSelect={(id) => {
+                  setSelectedBuildingId(id);
+                  if (id) setSelectedEntityId(null);
+              }}
+              followingEntityId={followingEntityId}
+              onCancelFollow={() => setFollowingEntityId(null)}
+              initialCenter={initialCenter}
+            />
+            
+            <UIOverlay 
+              gameState={gameState}
+              radioLogs={radioLogs}
+              selectedTool={selectedTool}
+              onSelectTool={setSelectedTool}
+              onTogglePause={togglePause}
+              onReset={handleResetGame}
+              onLocateEntity={(id) => { 
+                  setFollowingEntityId(id); 
+                  setSelectedEntityId(id); 
+              }}
+              followingEntityId={followingEntityId}
+              onToggleFollow={(id) => {
+                  setFollowingEntityId(prev => prev === id ? null : id);
+              }}
+              onAnalyzeBuilding={(id) => {
+                  gameMapRef.current?.analyzeBuilding(id);
+              }}
+              onScavengeBuilding={(id) => {
+                  gameMapRef.current?.scavengeBuilding(id);
+              }}
+            />
+          </>
+        )}
+      </div>
+    </React.Suspense>
   );
 };
 

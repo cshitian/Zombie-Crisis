@@ -1,4 +1,4 @@
-
+import i18n from '../i18n';
 import { SoundType, WeaponType, BGMState } from '../types';
 
 class AudioService {
@@ -208,21 +208,21 @@ class AudioService {
     const now = this.ctx.currentTime;
     const isZombie = data.isZombie || type.startsWith('ZOM');
     const age = data.age || 30;
-    const gender = data.gender || '男';
+    const gender = data.gender;
 
     if (isZombie) {
         if (this.playFromBuffer('ZOMBIE', 0.25)) return;
     } else {
         let bufferKey = 'MALE_SCREAM';
-        if (age < 12) bufferKey = 'CHILD_SCREAM';
-        else if (gender === '女') bufferKey = 'FEMALE_SCREAM';
+        if (gender === i18n.t('gender_male')) bufferKey = 'MALE_SCREAM';
+        else if (gender === i18n.t('gender_female')) bufferKey = 'FEMALE_SCREAM';
 
         if (this.playFromBuffer(bufferKey, 0.2)) return;
     }
 
     // Fallback to synthesis
     let baseFreq = 200; // Default male
-    if (gender === '女') baseFreq = 400;
+    if (gender === i18n.t('gender_female')) baseFreq = 400;
     if (age < 12) baseFreq = 700; // Child
     if (age > 65) baseFreq = 140; // Elderly
 

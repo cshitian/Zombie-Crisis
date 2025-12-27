@@ -1,9 +1,12 @@
 
 import React, { useEffect, useState, useRef, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, Circle, Polygon, Pane } from 'react-leaflet';
 import L from 'leaflet';
-import { Coordinates, EntityType, CivilianType, GameEntity, GameState, RadioMessage, ToolType, Vector, WeaponType, VisualEffect, SoundType, Building, BGMState, WeaponItem, StrikeZone, Crater } from '../types';
-import { GAME_CONSTANTS, DEFAULT_LOCATION, CHINESE_SURNAMES, CHINESE_GIVEN_NAMES_MALE, CHINESE_GIVEN_NAMES_FEMALE, THOUGHTS, WEAPON_STATS, WEAPON_SYMBOLS, MOOD_ICONS } from '../constants';
+import { Coordinates, EntityType, CivilianType, GameEntity, GameState, RadioMessage, ToolType, Vector, WeaponType, VisualEffect, SoundType, Building, BGMState, WeaponItem, StrikeZone, Crater, BuildingType } from '../types';
+import { GAME_CONSTANTS, DEFAULT_LOCATION, WEAPON_STATS, WEAPON_SYMBOLS, MOOD_ICONS } from '../constants';
+import { NAMES_DATA } from '../namesData';
 import { generateRadioChatter, generateTacticalAnalysis } from '../services/geminiService';
 import { audioService } from '../services/audioService';
 import { mapDataService } from '../services/mapDataService';
@@ -46,10 +49,17 @@ const isPointInPolygon = (point: Coordinates, polygon: Coordinates[]) => {
 
 // --- Helpers ---
 const getRandomName = (isMale: boolean) => {
-  const surname = CHINESE_SURNAMES[Math.floor(Math.random() * CHINESE_SURNAMES.length)];
-  const givenNames = isMale ? CHINESE_GIVEN_NAMES_MALE : CHINESE_GIVEN_NAMES_FEMALE;
+  const lang = (i18n.language || 'zh').split('-')[0] as keyof typeof NAMES_DATA;
+  const data = NAMES_DATA[lang] || NAMES_DATA.en;
+  
+  const surname = data.surnames[Math.floor(Math.random() * data.surnames.length)];
+  const givenNames = isMale ? data.male : data.female;
   const givenName = givenNames[Math.floor(Math.random() * givenNames.length)];
-  return surname + givenName;
+  
+  if (lang === 'zh' || lang === 'ja' || lang === 'ko') {
+    return surname + givenName;
+  }
+  return givenName + ' ' + surname;
 };
 
 const getRandomWeapon = (): WeaponType => {
@@ -68,61 +78,61 @@ const getRandomWeapon = (): WeaponType => {
 };
 
 const getRandomThought = (entity: GameEntity, neighbors: GameEntity[], nearbyZombies: number) => {
-  if (entity.isDead) return THOUGHTS.CORPSE[0];
-  if (entity.isTrapped) return THOUGHTS.ZOMBIE_TRAPPED[Math.floor(Math.random() * THOUGHTS.ZOMBIE_TRAPPED.length)];
-  if (entity.isMedic) return THOUGHTS.MEDIC[Math.floor(Math.random() * THOUGHTS.MEDIC.length)];
+  if (entity.isDead) return i18n.t('thoughts.CORPSE', { returnObjects: true })[0];
+  if (entity.isTrapped) {
+    const list = i18n.t('thoughts.ZOMBIE_TRAPPED', { returnObjects: true }) as string[];
+    return list[Math.floor(Math.random() * list.length)];
+  }
+  if (entity.isMedic) {
+    const list = i18n.t('thoughts.MEDIC', { returnObjects: true }) as string[];
+    return list[Math.floor(Math.random() * list.length)];
+  }
 
-  let pool: string[] = [];
+  let poolName: string = '';
   
   if (entity.type === EntityType.ZOMBIE) {
-    pool = THOUGHTS.ZOMBIE;
+    poolName = 'ZOMBIE';
   } else if (entity.type === EntityType.SOLDIER) {
     const nearbyArmedCiv = neighbors.find(n => n.type === EntityType.CIVILIAN && n.isArmed && getVecDistance(entity.position, n.position) < 0.001);
     
     const meta = entity.locationMetadata;
     if (meta && Math.random() < 0.3) {
-      const road = meta.road || '这条路';
+      const road = meta.road || i18n.t('road_placeholder');
       const feat = meta.feature;
-      const locs = [
-          `正在通过${road}，推进中。`,
-          `在${road}发现敌情，准备战斗。`,
-          feat ? `检查${feat}周边。` : `搜索附近建筑。`,
-          `这里是${entity.currentLocationName}，报告完毕。`
-      ];
-      return locs[Math.floor(Math.random() * locs.length)];
+      const loc = entity.currentLocationName;
+      
+      const list = (feat && Math.random() < 0.5) 
+        ? i18n.t('thoughts.dynamic.soldier_feat', { returnObjects: true, feat }) as string[]
+        : (Math.random() < 0.5 
+          ? i18n.t('thoughts.dynamic.soldier_road', { returnObjects: true, road }) as string[]
+          : i18n.t('thoughts.dynamic.soldier_loc', { returnObjects: true, loc }) as string[]);
+      
+      return list[Math.floor(Math.random() * list.length)];
     }
 
-    if (nearbyArmedCiv && Math.random() < 0.3) {
-        pool = THOUGHTS.SOLDIER_COMPLAINT;
-    } else {
-        pool = THOUGHTS.SOLDIER;
-    }
+    poolName = (nearbyArmedCiv && Math.random() < 0.3) ? 'SOLDIER_COMPLAINT' : 'SOLDIER';
   } else {
       // Civilian
       const meta = entity.locationMetadata;
       if (meta && Math.random() < 0.45) {
-        const road = meta.road || '这条路';
+        const road = meta.road || i18n.t('road_placeholder');
         const feat = meta.feature;
         const sub = meta.suburb;
+        const loc = entity.currentLocationName;
 
-        const locs = [
-          `我就在${entity.currentLocationName}这儿，怪物越来越多了...`,
-          `${entity.currentLocationName}现在到处都是火，太可怕了。`,
-          `得赶紧离开${road}，前面好像堵住了。`,
-          `这里是${entity.currentLocationName}吗？我已经彻底迷路了...`,
-          feat ? `能在${feat}找个地方躲躲吗？` : `该找个结实的建筑躲起来...`,
-          sub ? `不知道${sub}那边的撤离点还在不在。` : `指挥中心，收到请回答！`
-        ];
-        return locs[Math.floor(Math.random() * locs.length)];
+        const list = (feat && Math.random() < 0.3)
+          ? i18n.t('thoughts.dynamic.civilian_feat', { returnObjects: true, feat }) as string[]
+          : (sub && Math.random() < 0.3)
+            ? i18n.t('thoughts.dynamic.civilian_sub', { returnObjects: true, sub }) as string[]
+            : i18n.t('thoughts.dynamic.civilian_road', { returnObjects: true, loc, road }) as string[];
+            
+        return list[Math.floor(Math.random() * list.length)];
       }
 
       if (entity.homeLocationName && Math.random() < 0.15) {
-        const homes = [
-          `我家就住${entity.homeLocationName}附近，不知道那边怎么样了。`,
-          `我想回${entity.homeLocationName}看看...`,
-          `希望能回${entity.homeLocationName}拿点东西。`
-        ];
-        return homes[Math.floor(Math.random() * homes.length)];
+        const home = entity.homeLocationName;
+        const list = i18n.t('thoughts.dynamic.civilian_home', { returnObjects: true, home }) as string[];
+        return list[Math.floor(Math.random() * list.length)];
       }
 
       // Proximity checks for reactive thoughts
@@ -132,27 +142,29 @@ const getRandomThought = (entity: GameEntity, neighbors: GameEntity[], nearbyZom
       const nearbyMedics = neighbors.filter(n => n.isMedic && getVecDistance(entity.position, n.position) < SEARCH_DIST);
 
       if (zombiesVeryClose.length > 0 && Math.random() < 0.6) {
-          pool = THOUGHTS.CIVILIAN_SEE_ZOMBIE_CLOSE;
+          poolName = 'CIVILIAN_SEE_ZOMBIE_CLOSE';
       } else if (nearbyMedics.length > 0 && Math.random() < 0.4) {
-          pool = THOUGHTS.CIVILIAN_SEE_MEDIC;
+          poolName = 'CIVILIAN_SEE_MEDIC';
       } else if (nearbySoldiers.length > 0 && Math.random() < 0.4) {
-          pool = THOUGHTS.CIVILIAN_SEE_SOLDIER;
+          poolName = 'CIVILIAN_SEE_SOLDIER';
       } else {
           const thoughtRoll = Math.random();
           if (thoughtRoll < 0.2) {
-              pool = THOUGHTS.CIVILIAN_MEMORIES;
+              poolName = 'CIVILIAN_MEMORIES';
           } else if (thoughtRoll < 0.4) {
-              pool = THOUGHTS.CIVILIAN_SURVIVAL;
+              poolName = 'CIVILIAN_SURVIVAL';
           } else if (entity.isArmed) {
-              pool = Math.random() < 0.5 ? THOUGHTS.ARMED_CIVILIAN : THOUGHTS.CIVILIAN_ARMED;
+              poolName = Math.random() < 0.5 ? 'ARMED_CIVILIAN' : 'CIVILIAN_ARMED';
           } else if (nearbyZombies > 0) {
-              pool = THOUGHTS.CIVILIAN_PANIC;
+              poolName = 'CIVILIAN_PANIC';
           } else {
-              pool = THOUGHTS.CIVILIAN_CALM;
+              poolName = 'CIVILIAN_CALM';
           }
       }
-    }
-    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  const list = i18n.t(`thoughts.${poolName}`, { returnObjects: true }) as string[];
+  return list[Math.floor(Math.random() * list.length)];
 };
 
 const getRandomMood = (entity: GameEntity, nearbyZombiesCount: number) => {
@@ -199,13 +211,14 @@ const createEntityIcon = (entity: GameEntity, isSelected: boolean) => {
         innerContent = '<div class="absolute inset-0 border border-cyan-400 bg-cyan-400/30 animate-pulse"></div>';
         ringClass = 'ring-1 ring-cyan-400';
     }
+  } else if (entity.isMedic) {
+    colorClass = 'bg-white border border-red-500';
+    effectClass = 'shadow-[0_0_5px_rgba(239,68,68,0.8)]';
+    innerContent = '<div class="text-[8px] text-red-600 flex items-center justify-center font-bold leading-none h-full">+</div>';
   } else if (entity.type === EntityType.SOLDIER) {
     colorClass = 'bg-blue-500 border border-white';
     effectClass = 'shadow-[0_0_5px_rgba(59,130,246,0.8)]';
-    if (entity.isMedic) {
-        colorClass = 'bg-white border border-red-500';
-        innerContent = '<div class="text-[8px] text-red-600 flex items-center justify-center font-bold leading-none h-full">+</div>';
-    } else if (entity.weaponType) {
+    if (entity.weaponType) {
         const symbol = WEAPON_SYMBOLS[entity.weaponType];
         innerContent = `<div class="text-[8px] text-white flex items-center justify-center font-bold leading-none h-full scale-125 drop-shadow-md">${symbol}</div>`;
     }
@@ -218,7 +231,9 @@ const createEntityIcon = (entity: GameEntity, isSelected: boolean) => {
   }
 
   // Shapes based on type/demographic
-  if (entity.type === EntityType.CIVILIAN) {
+  if (entity.isMedic) {
+    shapeClass = 'rounded-full'; 
+  } else if (entity.type === EntityType.CIVILIAN) {
     switch (entity.subType) {
       case CivilianType.MAN: shapeClass = 'rounded-sm'; break; 
       case CivilianType.WOMAN: shapeClass = 'rounded-full'; break; 
@@ -471,39 +486,39 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
 
     // Survival Guide (Building & Surroundings)
     let guide = "";
-    const type = b.type.toLowerCase();
-    const isCommercial = type.includes('office') || type.includes('commercial') || type.includes('retail') || type.includes('mall');
-    const isResidential = type.includes('apartments') || type.includes('residential') || type.includes('house');
-    const isIndustrial = type.includes('industrial') || type.includes('factory') || type.includes('warehouse');
-    const isPublic = type.includes('hospital') || type.includes('university') || type.includes('school');
-
-    if (isResidential) {
-        guide = "该建筑属于生活居住区。周边街道错综复杂，适合打游击战。建议检查楼顶是否有撤离通道。交通情况：巷道狭窄，大型车辆难以进入。";
-    } else if (isCommercial) {
-        guide = "商业办公区。玻璃幕墙较多，防御性较弱，但视野极佳。周边通常为开阔地带，容易遭到包围。交通情况：主干道环绕，撤离速度快，但容易堵塞。";
-    } else if (isIndustrial) {
-        guide = "工业仓储区。结构极其稳固，适合长期固守。内部有大量大型设备可作为掩体。交通情况：多货运通道，适合重型装备部署。";
-    } else if (isPublic) {
-        guide = "关键公共设施。内部空间巨大且复杂，医疗物资丰富。战术价值极高。交通情况：设有紧急调度通道，是理想的直升机降落点。";
-    } else {
-        guide = "标准城市建筑。结构通用，无特殊防御加成。周边环境复杂。交通情况：随处可见的街区通道，机动性适中。";
-    }
+    switch (b.type) {
+         case BuildingType.RESIDENTIAL:
+           guide = i18n.t('building_analysis.residential_desc');
+           break;
+         case BuildingType.COMMERCIAL:
+           guide = i18n.t('building_analysis.commercial_desc');
+           break;
+         case BuildingType.INDUSTRIAL:
+           guide = i18n.t('building_analysis.industrial_desc');
+           break;
+         case BuildingType.PUBLIC:
+           guide = i18n.t('building_analysis.public_desc');
+           break;
+         case BuildingType.GENERAL:
+           guide = i18n.t('building_analysis.general_desc');
+           break;
+       }
 
     // Tactical Analysis (Current real-time data)
     let tactical = "";
     if (zombies > 10) {
-        tactical = `警告：当前区域僵尸数量极其密集（${zombies}个）。建筑已被包围，建议立即请求空袭支援或特种突击队进行斩首行动。`;
+        tactical = i18n.t('building_analysis.warning_high_infection', { zombies });
     } else if (zombies > 0) {
-        tactical = `注意：周边侦测到${zombies}个感染者。目前压力适中，平民在专业人员掩护下可尝试向外围移动。`;
+        tactical = i18n.t('building_analysis.tactical_zombies_present', { zombies });
     } else {
-        tactical = "当前建筑周边暂时安全。无感染者活动。建议抓紧时间加固防线或搜集物资。";
+        tactical = i18n.t('building_analysis.tactical_safe');
     }
 
     if (soldiers > 0) {
-        tactical += ` 目前该区域有${soldiers}名专业作战人员提供火力覆盖。`;
+        tactical += ` ${i18n.t('building_analysis.tactical_soldiers', { soldiers })}`;
     }
     if (civilians > 0) {
-        tactical += ` 建筑内及周边发现${civilians}名平民。`;
+        tactical += ` ${i18n.t('building_analysis.tactical_civilians', { civilians })}`;
     }
 
     return {
@@ -538,8 +553,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
 
         // Show initial intent in log
         addLog({
-            sender: '指挥部',
-            text: `正在启动对 ${b.name} 的深度扫描，请稍候...`
+             sender: i18n.t('headquarters'),
+             text: i18n.t('ai_messages.scanning_start', { name: b.name })
         });
 
         const pos = b.geometry[0];
@@ -559,8 +574,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
 
             if (!locationInfo && nearbyFeatures.length === 0) {
                 addLog({
-                    sender: '指挥部',
-                    text: `警告：目标区域 ${b.name} 的地理元数据载入失败。将使用本地缓存及战术基准数据进行分析。`
+                     sender: i18n.t('headquarters'),
+                     text: i18n.t('ai_messages.scanning_fail_meta', { name: b.name })
                 });
             }
 
@@ -587,8 +602,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             
             // Log completion
             addLog({
-                sender: '战术分析AI',
-                text: `对 ${b.name} 的深度扫描已完成。数据已同步，注意查收生存指南。`
+                 sender: i18n.t('tactical_ai'),
+                 text: i18n.t('ai_messages.scanning_complete', { name: b.name })
             });
             
             // Sync triggers
@@ -598,8 +613,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             console.error("Tactical Analysis Error:", error);
             if (b.analysis) b.analysis.isAnalyzing = false;
             addLog({
-                sender: '指挥部',
-                text: `对 ${b.name} 的扫描请求遇到技术障碍。`
+                 sender: i18n.t('headquarters'),
+                 text: i18n.t('ai_messages.scanning_error', { name: b.name })
             });
             setBuildingsSyncTrigger(prev => prev + 1);
             onUpdateState({...stateRef.current});
@@ -636,8 +651,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
 
         // Log result
         addLog({
-            sender: '搜救队',
-            text: `从 ${b.name} 搜寻到了价值 $${reward} 的物资。`
+             sender: i18n.t('scavenge_team'),
+             text: i18n.t('ai_messages.scavenge_result', { name: b.name, reward })
         });
 
         // Sync triggers
@@ -678,7 +693,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
       fetchBuildings(pos);
       mapDataService.getLocationInfo(pos).then(info => {
         generateRadioChatter(stateRef.current, pos, 'START', info || undefined).then(text => {
-          addLog({ sender: '指挥部', text });
+           addLog({ sender: i18n.t('headquarters'), text });
         });
       });
     };
@@ -713,7 +728,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         subType,
         name: getRandomName(isMale),
         age: subType === CivilianType.CHILD ? 5 + Math.floor(Math.random()*10) : subType === CivilianType.ELDERLY ? 60 + Math.floor(Math.random()*30) : 18 + Math.floor(Math.random()*40),
-        gender: isMale ? '男' : '女',
+        gender: isMale ? i18n.t('gender_male') : i18n.t('gender_female'),
+        isMale,
         thought: '',
         position: {
           lat: center.lat + r * Math.cos(angle),
@@ -741,7 +757,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         z.type = EntityType.ZOMBIE;
         z.isInfected = true;
         z.health = 20; 
-        z.thought = THOUGHTS.ZOMBIE[0];
+        z.thought = (i18n.t('thoughts.ZOMBIE', { returnObjects: true }) as string[])[0];
     }
 
     entitiesRef.current = newEntities;
@@ -842,8 +858,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                 setEffects(prev => [...prev, effect]);
 
                 addLog({
-                    sender: '战术指挥中心',
-                    text: `打击波次已到达。确认摧毁半径内所有目标 (${victims.length} 名)。区域环境已遭受结构性损毁。`
+                     sender: i18n.t('intel_center'),
+                     text: i18n.t('airstrike_impact', { count: victims.length })
                 });
 
                 audioService.playSound(SoundType.WEAPON_ROCKET, true);
@@ -875,7 +891,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
               entity.trappedTimer -= GAME_CONSTANTS.TICK_RATE;
               if (entity.trappedTimer <= 0) {
                   entity.isTrapped = false;
-                  entity.thought = "吼！！！"; // Angry roar on release
+                  entity.thought = i18n.t('thoughts.ZOMBIE_ROAR'); // Angry roar on release
               } else {
                   // No movement
                   return;
@@ -900,7 +916,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
               if (Math.random() < 0.4) {
                   entity.moodIcon = MOOD_ICONS.CROSSING[Math.floor(Math.random() * MOOD_ICONS.CROSSING.length)];
                   entity.moodTimer = GAME_CONSTANTS.MOOD_DURATION;
-                  entity.thought = THOUGHTS.CROSSING[Math.floor(Math.random() * THOUGHTS.CROSSING.length)];
+                  const list = i18n.t('thoughts.CROSSING', { returnObjects: true }) as string[];
+                  entity.thought = list[Math.floor(Math.random() * list.length)];
               }
               entity.wasInsideBuilding = isInside;
           }
@@ -949,9 +966,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                           audioService.playSound(SoundType.HEAL_START);
                           onAddLog({ 
                               id: `heal-start-${Date.now()}-${entity.id}`, 
-                              sender: `医疗兵 ${entity.name}`, 
-                              senderId: entity.id,
-                              text: `正在对目标进行应急处置，掩护我！`, 
+                              sender: `${i18n.t('medic')} ${entity.name}`, 
+                               text: i18n.t('medic_treating'), 
                               timestamp: Date.now() 
                           });
                       }
@@ -965,9 +981,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                               audioService.playSound(SoundType.HEAL_COMPLETE);
                               onAddLog({ 
                                   id: `heal-done-${Date.now()}-${entity.id}`, 
-                                  sender: `医疗兵 ${entity.name}`, 
-                                  senderId: entity.id,
-                                  text: `治疗完成！该市民已恢复意识。正在寻找下一个生还者。`, 
+                                  sender: `${i18n.t('medic')} ${entity.name}`, 
+                                   text: i18n.t('medic_finished'), 
                                   timestamp: Date.now() 
                               });
                          } else {
@@ -1079,7 +1094,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                   entity.isArmed = true;
                   entity.weaponType = nearestWeapon.type;
                   if (entity.weaponType === WeaponType.ROCKET) entity.ammo = GAME_CONSTANTS.ROCKET_AMMO_LIMIT;
-                  entity.thought = `拿到了${WEAPON_STATS[entity.weaponType].name}！跟它们拼了！`;
+                   const weaponName = i18n.t(`weapons.${entity.weaponType}`);
+                   entity.thought = i18n.t('thoughts.PICKED_UP_WEAPON', { weaponName });
                   entity.moodIcon = "🔫";
                   entity.moodTimer = GAME_CONSTANTS.MOOD_DURATION;
                   
@@ -1107,7 +1123,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                 
                 if (isPriority || distToCenter < 0.0015) {
                     const entityData = { 
-                        gender: entity.gender, 
+                        gender: i18n.t(entity.gender === 'male' ? 'gender_male' : 'gender_female'), 
                         age: entity.age, 
                         isZombie: false 
                     };
@@ -1149,7 +1165,6 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         });
 
         // 1.1b-2 BACKGROUND LOCATION UPDATE
-        // Throttled: only update location once every 40 ticks (~2 seconds)
         if (tick % 40 === 0 && activeEntities.length > 0) {
           const updateTarget = activeEntities[Math.floor(Math.random() * activeEntities.length)];
           mapDataService.getLocationInfo(updateTarget.position).then(info => {
@@ -1165,7 +1180,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             const channelUsers = activeEntities.filter(e => e.type === EntityType.SOLDIER || (e.type === EntityType.CIVILIAN && e.isArmed));
             if (channelUsers.length > 0) {
                 const chatterSource = channelUsers[Math.floor(Math.random() * channelUsers.length)];
-                let senderPrefix = chatterSource.isMedic ? "医疗兵" : chatterSource.type === EntityType.SOLDIER ? "特专队员" : "武装市民";
+                let senderPrefix = chatterSource.isMedic ? i18n.t('medic') : chatterSource.type === EntityType.SOLDIER ? i18n.t('specops') : i18n.t('armed_civilian');
                 
                 mapDataService.getLocationInfo(chatterSource.position).then(info => {
                     if (info) {
@@ -1191,7 +1206,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             mapDataService.getLocationInfo(targetZ.position).then(info => {
                 generateRadioChatter(stateRef.current, targetZ.position, 'DISCOVERY', info || undefined).then(text => {
                     addLog({
-                        sender: '情报中心',
+                        sender: i18n.t('intel_center'),
                         text
                     });
                 });
@@ -1290,7 +1305,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                   if ((shooter.ammo || 0) <= 0) {
                       // Out of ammo, switch to Pistol
                       shooter.weaponType = WeaponType.PISTOL;
-                      shooter.thought = "没火箭弹了！换手枪！";
+                       shooter.thought = i18n.t('thoughts.OUT_OF_ROCKETS');
                       return; 
                   }
               }
@@ -1335,9 +1350,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                       audioService.playSound(sType, isPriority);
                       onAddLog({ 
                           id: `rocket-fire-${Date.now()}-${shooter.id}`, 
-                          sender: `队员 ${shooter.name}`, 
-                          senderId: shooter.id,
-                          text: `火箭弹发射！由于爆炸范围大，所有人闪避！`, 
+                          sender: `${i18n.t('specops')} ${shooter.name}`, 
+                           text: i18n.t('rocket_launched'), 
                           timestamp: Date.now() 
                       });
                       
@@ -1367,8 +1381,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                                   // FRIENDLY FIRE LOG
                                   onAddLog({
                                       id: `ff-${Date.now()}`,
-                                      sender: "指挥部",
-                                      text: `！！！警告：${e.name} 被友军火箭弹击中。停止无差别开火！`,
+                                       sender: i18n.t('headquarters'),
+                                       text: i18n.t('friendly_fire_warning', { name: e.name }),
                                       timestamp: Date.now()
                                   });
                               }
@@ -1393,9 +1407,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                        target.trappedTimer = GAME_CONSTANTS.NET_DURATION;
                        onAddLog({ 
                            id: `net-fire-${Date.now()}-${shooter.id}`, 
-                           sender: `队员 ${shooter.name}`, 
-                           senderId: shooter.id,
-                           text: `目标已捕获！医疗组快跟上！`, 
+                           sender: `${i18n.t('specops')} ${shooter.name}`, 
+                            text: i18n.t('target_netted'), 
                            timestamp: Date.now() 
                        });
                        newEffects.push({
@@ -1438,9 +1451,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                      if (Math.random() < 0.3) {
                          onAddLog({ 
                              id: `sniper-fire-${Date.now()}-${shooter.id}`, 
-                             sender: `狙击手 ${shooter.name}`, 
-                             senderId: shooter.id,
-                             text: `距离 ${Math.floor(getVecDistance(shooter.position, target.position) * 100000)}米，风速修正完成。目标已击中。`, 
+                             sender: `${i18n.t('sniper_prefix')} ${shooter.name}`, 
+                              text: i18n.t('sniper_kill_log', { dist: Math.floor(getVecDistance(shooter.position, target.position) * 100000) }), 
                              timestamp: Date.now() 
                          });
                      }
@@ -1470,7 +1482,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                 e.type = EntityType.ZOMBIE;
                 e.isInfected = true;
                 e.health = (isSoldier ? 50 : 20);
-                e.thought = "吼...";
+                e.thought = (i18n.t('thoughts.ZOMBIE', { returnObjects: true }) as string[])[0];
                 e.isArmed = false;
                 e.isMedic = false;
                 e.infectionRiskTimer = 0;
@@ -1484,13 +1496,13 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                 e.health = 10;
                 e.isTrapped = false;
                 e.infectionRiskTimer = 0;
-                e.thought = "我...我感觉好多了...";
+                e.thought = (i18n.t('thoughts.MEDIC', { returnObjects: true }) as string[])[0];
                 audioService.playSound(SoundType.HEAL_COMPLETE, e.id === selectedIdRef.current);
             }
             else if (newlyDeadIds.has(e.id)) {
+                e.health = 0;
                 e.isDead = true;
-                e.velocity = {x: 0, y: 0}; 
-                e.thought = THOUGHTS.CORPSE[0];
+                e.thought = (i18n.t('thoughts.CORPSE', { returnObjects: true }) as string[])[0];
                 e.isMedic = false; // Medic dies
                 e.healingTargetId = undefined;
                 e.isTrapped = false;
@@ -1522,7 +1534,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
           victoryAnnouncedRef.current = true;
           mapDataService.getLocationInfo(centerPos).then(info => {
             generateRadioChatter(stateRef.current, centerPos, 'WAVE_CLEARED', info || undefined).then(text => {
-              addLog({ sender: '总统', text });
+              addLog({ sender: i18n.t('president'), text });
             });
           });
       }
@@ -1535,7 +1547,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
           lowHealthAnnouncedRef.current = true;
           mapDataService.getLocationInfo(centerPos).then(info => {
             generateRadioChatter(stateRef.current, centerPos, 'LOW_HEALTH', info || undefined).then(text => {
-              addLog({ sender: '情报分析员', text });
+              addLog({ sender: i18n.t('intel_analyst'), text });
             });
           });
       }
@@ -1584,7 +1596,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         const now = Date.now();
         const end = stateRef.current.cooldowns[tool] || 0;
         if (now < end) {
-             onAddLog({ id: Date.now().toString(), sender: '系统', text: '行动冷却中...', timestamp: Date.now() });
+             onAddLog({ id: Date.now().toString(), sender: i18n.t('system'), text: i18n.t('cooldown_active'), timestamp: Date.now() });
              audioService.playSound(SoundType.UI_ERROR, true);
              return false;
         }
@@ -1598,7 +1610,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         return true;
       }
       audioService.playSound(SoundType.UI_ERROR, true);
-      onAddLog({ id: Date.now().toString(), sender: '系统', text: '资金不足', timestamp: Date.now() });
+      onAddLog({ id: Date.now().toString(), sender: i18n.t('system'), text: i18n.t('insufficient_funds'), timestamp: Date.now() });
       return false;
     };
 
@@ -1618,8 +1630,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             setStrikeZones([...strikeZonesRef.current]);
 
             addLog({
-                sender: '指挥部',
-                text: `收到。空袭计划已确认，战机预计5秒后抵达目标区域。所有友军立即撤离！`
+                sender: i18n.t('headquarters'),
+                text: i18n.t('airstrike_confirmed')
             });
             
             audioService.playSound(SoundType.DEPLOY_ACTION);
@@ -1649,8 +1661,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             setDroppedWeapons(droppedWeaponsRef.current);
             
             addLog({ 
-                sender: '系统', 
-                text: `武器空投已就绪。正在目标区域投放 3 件装备，请求幸存者就近夺取。` 
+                sender: i18n.t('system'), 
+                text: i18n.t('weapon_drop_ready') 
             });
             
             onSelectTool(ToolType.NONE);
@@ -1667,12 +1679,12 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                else if (rand < 0.7) wType = WeaponType.NET_GUN;
                
                entitiesRef.current.push({
-                 id: `soldier-${Date.now()}-${i}`,
+                 id: `specops-${Date.now()}-${i}`,
                  type: EntityType.SOLDIER,
                  name: getRandomName(true),
                  age: 20 + Math.floor(Math.random() * i),
-                 gender: '男',
-                 thought: THOUGHTS.SOLDIER[0],
+                 gender: i18n.t('gender_male'),
+                 thought: (i18n.t('thoughts.SOLDIER', { returnObjects: true }) as string[])[0],
                  position: { lat: clickPos.lat + (Math.random()*0.0001), lng: clickPos.lng + (Math.random()*0.0001) },
                  velocity: { x: 0, y: 0 },
                  wanderAngle: Math.random() * Math.PI * 2,
@@ -1691,7 +1703,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             }
             mapDataService.getLocationInfo(clickPos).then(info => {
               generateRadioChatter(stateRef.current, clickPos, 'RESCUE', info || undefined).then(text => {
-                addLog({ sender: '特种部队', text: `${text} 小队已在 ${info?.name || '指定区域'} 降落。` });
+                const locName = info?.name || i18n.t('unknown_area');
+                addLog({ sender: i18n.t('specops'), text: i18n.t('specops_arrived', { text, locName }) });
               });
             });
             onSelectTool(ToolType.NONE);
@@ -1702,11 +1715,12 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             for(let i=0; i<2; i++) { // Deploy 2 medics
                entitiesRef.current.push({
                  id: `medic-${Date.now()}-${i}`,
-                 type: EntityType.SOLDIER, // Uses soldier movement stats
+                 type: EntityType.CIVILIAN,
+                 isMedic: true,
                  name: getRandomName(true),
                  age: 30 + Math.floor(Math.random() * i),
-                 gender: '男',
-                 thought: THOUGHTS.MEDIC[0],
+                 gender: i18n.t('gender_male'),
+                 thought: (i18n.t('thoughts.MEDIC', { returnObjects: true }) as string[])[0],
                  position: { lat: clickPos.lat + (Math.random()*0.0001), lng: clickPos.lng + (Math.random()*0.0001) },
                  velocity: { x: 0, y: 0 },
                  wanderAngle: Math.random() * Math.PI * 2,
@@ -1716,19 +1730,18 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                  isDead: false,
                  isTrapped: false,
                  trappedTimer: 0,
-                 isMedic: true,
                  healingTimer: 0,
                  weaponType: undefined,
                  health: 30
                });
             }
-            onAddLog({ id: Date.now().toString(), sender: '医疗组', text: "医疗小组已就位，寻找目标中...", timestamp: Date.now() });
+             onAddLog({ id: Date.now().toString(), sender: i18n.t('medic_team'), text: i18n.t('medic_team_ready'), timestamp: Date.now() });
             onSelectTool(ToolType.NONE);
         }
     }
   };
 
-  if (!initialized) return <div className="flex h-full w-full items-center justify-center bg-black text-green-500 font-mono text-xl animate-pulse">卫星数据载入中...</div>;
+  if (!initialized) return <div className="flex h-full w-full items-center justify-center bg-black text-green-500 font-mono text-xl animate-pulse">{i18n.t('loading_satellite')}</div>;
 
   return (
     <MapContainer 
@@ -1855,12 +1868,12 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                           className: 'bg-transparent',
                           html: `
                               <div class="flex flex-col items-center justify-center">
-                                  <div class="text-red-500 font-black text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] animate-pulse">
-                                      ${remaining}秒
-                                  </div>
-                                  <div class="text-white text-[10px] font-bold bg-red-600 px-2 py-0.5 rounded animate-bounce whitespace-nowrap">
-                                      警告：空中打击
-                                  </div>
+                                     <div class="absolute top-0 right-0 bg-red-600 text-white px-3 py-1 text-xs font-bold animate-blink">
+                                       ${remaining}${i18n.t('sec_suffix')}
+                                     </div>
+                                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-500 font-bold whitespace-nowrap text-sm animate-pulse">
+                                       ${i18n.t('warning_airstrike')}
+                                     </div>
                               </div>
                           `,
                           iconSize: [120, 60],

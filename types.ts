@@ -28,6 +28,14 @@ export enum BGMState {
   COMBAT = 'COMBAT'
 }
 
+export enum BuildingType {
+  RESIDENTIAL = 'RESIDENTIAL',
+  COMMERCIAL = 'COMMERCIAL',
+  PUBLIC = 'PUBLIC',
+  INDUSTRIAL = 'INDUSTRIAL',
+  GENERAL = 'GENERAL'
+}
+
 export enum EntityType {
   CIVILIAN = 'CIVILIAN',
   ZOMBIE = 'ZOMBIE',
@@ -103,7 +111,8 @@ export interface GameEntity {
   // Bio Data
   name: string;
   age: number;
-  gender: string; // Display string (男/女)
+  gender: string; // Display string (男/女) - deprecated, use isMale for dynamic l10n
+  isMale: boolean;
   thought: string; // Inner monologue
   
   position: Coordinates;
