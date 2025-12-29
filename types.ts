@@ -146,6 +146,11 @@ export interface GameEntity {
   moodIcon?: string;    // Current active emoji
   moodTimer?: number;   // Duration left for the bubble (ms)
   wasInsideBuilding?: boolean; // For boundary transition detection
+
+  // Perception & Behavior Refinement
+  isWanderer?: boolean;       // 5% of civilians who like to be outside
+  panicTimer?: number;        // Timer for panic state (ms)
+  lastTargetBuildingId?: string; // For hiding logic
 }
 
 export interface WeaponItem {

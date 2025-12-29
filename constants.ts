@@ -6,27 +6,34 @@ import { WeaponType } from './types';
 
 export const GAME_CONSTANTS = {
   // Base Speeds (degrees per tick)
-  MAX_SPEED_ZOMBIE: 0.000008, // Slightly increased to make them more dangerous
-  MAX_SPEED_SOLDIER: 0.000008,   
-  MAX_SPEED_CIVILIAN: 0.000005,  
+  MAX_SPEED_ZOMBIE: 0.000005, // Reduced from 0.000010
+  MAX_SPEED_ZOMBIE_IDLE: 0.000001, // Reduced from 0.000002
+  MAX_SPEED_SOLDIER: 0.000004,   // Reduced from 0.000008
+  MAX_SPEED_CIVILIAN: 0.000003,  // Reduced from 0.000006
   
   // Speed Multipliers
-  MULT_SPRINT: 1.2, 
+  MULT_SPRINT: 1.5, // Increased from 1.2
   MULT_WANDER: 0.6, 
 
   // Speed Penalties (When inside buildings)
   PENALTY_CIVILIAN: 0.5,    // 50% reduction
-  PENALTY_ZOMBIE: 0.2,      // 80% reduction (Zombies are slower indoors)
+  PENALTY_ZOMBIE: 0.5,      // Increased from 0.2 (Zombies now move at 50% speed indoors)
   PENALTY_PROFESSIONAL: 0.9, // 10% reduction (Hardly affected)
 
   // Ranges (degrees)
-  INFECTION_RANGE: 0.00022, // Increased range to make infection easier
+  INFECTION_RANGE: 0.00025, // Increased range to make infection easier
   VISION_RANGE_ZOMBIE: 0.0030, // Increased vision  
   VISION_RANGE_HUMAN: 0.0030,
+  VISION_RANGE_OUTDOOR: 0.0018, // 200m
+  SMELL_RANGE_ZOMBIE: 0.0045,   // 500m
+  HEARING_RANGE: 0.0008,        // 90m
+  HEARING_THRESHOLD_ZOMBIES: 3,
+  SATELLITE_VISION_RANGE: 0.01,
+  VISION_ANGLE_HUMAN: 120, // degrees
   
   // Steering Forces (Weights)
   FORCE_SEPARATION: 3.0, 
-  FORCE_SEEK: 1.5,       
+  FORCE_SEEK: 2.5,       // Increased for more aggressive pursuit
   FORCE_FLEE: 4.0,       
   FORCE_WANDER: 0.8,     
   FORCE_COHESION: 0.2,   
@@ -42,9 +49,14 @@ export const GAME_CONSTANTS = {
   TICK_RATE: 50, // ms
   INITIAL_POPULATION: 120,
   SPAWN_RADIUS: 0.0025,
-  INFECTION_DURATION: 5000, // 5 seconds of continuous contact needed
+  INFECTION_DURATION: 3000, // Reduced from 5000 (Faster infection)
   ROCKET_AMMO_LIMIT: 3,
   SNIPER_COOLDOWN: 5000, // 5 seconds cooldown for snipers
+  PANIC_DURATION: 10000, // 10 seconds of panic after seeing a zombie
+  HIDE_COOLDOWN: 15000,  // Check for new hiding spot every 15s
+  BUILDING_STAY_CHANCE: 0.95, // 95% of civilians prefer staying inside
+  WANDERER_CHANCE: 0.05,     // 5% of civilians are wanderers
+  OUTBREAK_INFECTION_CHANCE: 1.0,
   
   // Economy & Cooldowns
   INITIAL_RESOURCES: 1000,

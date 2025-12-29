@@ -47,6 +47,64 @@ const isPointInPolygon = (point: Coordinates, polygon: Coordinates[]) => {
   return inside;
 };
 
+// --- Perception Helpers ---
+const getAngleDifference = (a1: number, a2: number) => {
+  let diff = Math.abs(a1 - a2) % (Math.PI * 2);
+  if (diff > Math.PI) diff = Math.PI * 2 - diff;
+  return diff;
+};
+
+const canSee = (observer: GameEntity, target: GameEntity, buildings: Building[]) => {
+  if (target.isDead) return false;
+  
+  const d = getVecDistance(observer.position, target.position);
+  const range = GAME_CONSTANTS.VISION_RANGE_OUTDOOR;
+  if (d > range) return false;
+
+  // Vision Angle Check
+  const observerAngle = observer.wanderAngle; // WanderAngle is used as facing direction
+  const targetAngle = Math.atan2(target.position.lng - observer.position.lng, target.position.lat - observer.position.lat);
+  const angleDiff = getAngleDifference(observerAngle, targetAngle);
+  const fov = (observer.type === EntityType.SOLDIER ? GAME_CONSTANTS.VISION_ANGLE_HUMAN : GAME_CONSTANTS.VISION_ANGLE_HUMAN) * (Math.PI / 180);
+  if (angleDiff > fov / 2) return false;
+
+  // Building Obstruction
+  const obsInside = buildings.find(b => isPointInPolygon(observer.position, b.geometry));
+  const targetInside = buildings.find(b => isPointInPolygon(target.position, b.geometry));
+
+  if (obsInside !== targetInside) return false; // One inside, one outside OR different buildings
+  
+  return true;
+};
+
+const canHear = (observer: GameEntity, entities: GameEntity[]) => {
+  const range = GAME_CONSTANTS.HEARING_RANGE;
+  const nearbyZombies = entities.filter(e => 
+    e.type === EntityType.ZOMBIE && 
+    !e.isDead && 
+    getVecDistance(observer.position, e.position) < range
+  ).length;
+  
+  return nearbyZombies >= GAME_CONSTANTS.HEARING_THRESHOLD_ZOMBIES;
+};
+
+const canSmell = (observer: GameEntity, target: GameEntity) => {
+  if (target.isDead) return false;
+  const d = getVecDistance(observer.position, target.position);
+  return d < GAME_CONSTANTS.SMELL_RANGE_ZOMBIE;
+};
+
+const getNearestBuilding = (pos: Coordinates, buildings: Building[]) => {
+  let nearest: Building | null = null;
+  let minDist = 999;
+  buildings.forEach(b => {
+      // Use the first point as a proxy for building center
+      const d = getVecDistance(pos, b.geometry[0]);
+      if (d < minDist) { minDist = d; nearest = b; }
+  });
+  return nearest;
+};
+
 // --- Helpers ---
 const getRandomName = (isMale: boolean) => {
   const lang = (i18n.language || 'zh').split('-')[0] as keyof typeof NAMES_DATA;
@@ -77,7 +135,7 @@ const getRandomWeapon = (): WeaponType => {
   return WeaponType.NET_GUN; 
 };
 
-const getRandomThought = (entity: GameEntity, neighbors: GameEntity[], nearbyZombies: number) => {
+const getRandomThought = (entity: GameEntity, neighbors: GameEntity[], nearbyZombies: number, buildings: Building[]) => {
   if (entity.isDead) return i18n.t('thoughts.CORPSE', { returnObjects: true })[0];
   if (entity.isTrapped) {
     const list = i18n.t('thoughts.ZOMBIE_TRAPPED', { returnObjects: true }) as string[];
@@ -147,7 +205,11 @@ const getRandomThought = (entity: GameEntity, neighbors: GameEntity[], nearbyZom
           poolName = 'CIVILIAN_SEE_MEDIC';
       } else if (nearbySoldiers.length > 0 && Math.random() < 0.4) {
           poolName = 'CIVILIAN_SEE_SOLDIER';
+      } else if (entity.panicTimer && entity.panicTimer > 0) {
+          poolName = 'CIVILIAN_PANIC';
+          if (nearbyZombies === 0 && Math.random() < 0.5) poolName = 'CIVILIAN_HIDING';
       } else {
+          const isInside = buildings.some(b => isPointInPolygon(entity.position, b.geometry));
           const thoughtRoll = Math.random();
           if (thoughtRoll < 0.2) {
               poolName = 'CIVILIAN_MEMORIES';
@@ -155,8 +217,8 @@ const getRandomThought = (entity: GameEntity, neighbors: GameEntity[], nearbyZom
               poolName = 'CIVILIAN_SURVIVAL';
           } else if (entity.isArmed) {
               poolName = Math.random() < 0.5 ? 'ARMED_CIVILIAN' : 'CIVILIAN_ARMED';
-          } else if (nearbyZombies > 0) {
-              poolName = 'CIVILIAN_PANIC';
+          } else if (isInside && Math.random() < 0.4) {
+              poolName = 'CIVILIAN_INDOOR';
           } else {
               poolName = 'CIVILIAN_CALM';
           }
@@ -432,6 +494,9 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
   const [strikeZones, setStrikeZones] = useState<StrikeZone[]>([]);
   const [craters, setCraters] = useState<Crater[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [outbreakPoint, setOutbreakPoint] = useState<Coordinates | null>(null);
+  const populationInitializedRef = useRef(false);
+  
   
   const entitiesRef = useRef<GameEntity[]>([]);
   const droppedWeaponsRef = useRef<WeaponItem[]>([]);
@@ -675,10 +740,13 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         const newBuildings = geoms.filter(b => !existingIds.has(b.id));
         if (newBuildings.length > 0) {
             buildingsRef.current = [...buildingsRef.current, ...newBuildings];
-            // Trigger re-render by updating entities or a dummy state if needed,
-            // but since buildings are rendered from ref in the return, 
-            // we might need a state to trigger React to refresh the Polygon list.
             setBuildingsSyncTrigger(prev => prev + 1);
+
+            // If population hasn't been initialized yet, and we have buildings, do it now
+            if (!populationInitializedRef.current && buildingsRef.current.length > 0) {
+                populationInitializedRef.current = true;
+                initPopulation(pos, buildingsRef.current);
+            }
         }
     });
   }, []);
@@ -695,9 +763,17 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
   useEffect(() => {
     const handleInit = (pos: Coordinates) => {
       setCenterPos(pos);
-      initPopulation(pos);
-      setInitialized(true);
+      // Don't init population here yet, wait for buildings
       fetchBuildings(pos);
+
+      // Fallback: If no buildings are found after 3 seconds, init population anyway
+      setTimeout(() => {
+        if (!populationInitializedRef.current) {
+          populationInitializedRef.current = true;
+          initPopulation(pos, buildingsRef.current);
+        }
+      }, 3000);
+
       mapDataService.getLocationInfo(pos).then(info => {
         generateRadioChatter(stateRef.current, pos, 'START', info || undefined).then(text => {
            addLog({ sender: i18n.t('headquarters'), text });
@@ -718,12 +794,46 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
     }
   }, [initialCenter]);
 
-  const initPopulation = (center: Coordinates) => {
+  const initPopulation = (center: Coordinates, buildings: Building[]) => {
     const newEntities: GameEntity[] = [];
     
+    // Pick an outbreak building first
+    let outbreakTarget: Coordinates | null = null;
+    if (buildings.length > 0) {
+        const b = buildings[Math.floor(Math.random() * buildings.length)];
+        outbreakTarget = b.geometry[0]; // Simplification for center
+        setOutbreakPoint(outbreakTarget);
+    } else {
+        // Fallback for outbreak
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * GAME_CONSTANTS.SPAWN_RADIUS * 0.5;
+        outbreakTarget = {
+            lat: center.lat + r * Math.cos(angle),
+            lng: center.lng + r * Math.sin(angle) * 0.8
+        };
+        setOutbreakPoint(outbreakTarget);
+    }
+
     for (let i = 0; i < GAME_CONSTANTS.INITIAL_POPULATION; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * GAME_CONSTANTS.SPAWN_RADIUS;
+      let spawnPos: Coordinates;
+      const isIndoorPreference = Math.random() < GAME_CONSTANTS.BUILDING_STAY_CHANCE;
+      const isIndoor = buildings.length > 0 && isIndoorPreference;
+      
+      if (isIndoor) {
+          const b = buildings[Math.floor(Math.random() * buildings.length)];
+          const vertex = b.geometry[Math.floor(Math.random() * b.geometry.length)];
+          spawnPos = {
+              lat: vertex.lat + (Math.random() - 0.5) * 0.0001,
+              lng: vertex.lng + (Math.random() - 0.5) * 0.0001
+          };
+      } else {
+          const angle = Math.random() * Math.PI * 2;
+          const r = Math.sqrt(Math.random()) * GAME_CONSTANTS.SPAWN_RADIUS;
+          spawnPos = {
+            lat: center.lat + r * Math.cos(angle),
+            lng: center.lng + r * Math.sin(angle) * 0.8 
+          };
+      }
       
       const types = [CivilianType.MAN, CivilianType.WOMAN, CivilianType.CHILD, CivilianType.ELDERLY];
       const subType = types[Math.floor(Math.random() * types.length)];
@@ -738,10 +848,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         gender: isMale ? i18n.t('gender_male') : i18n.t('gender_female'),
         isMale,
         thought: '',
-        position: {
-          lat: center.lat + r * Math.cos(angle),
-          lng: center.lng + r * Math.sin(angle) * 0.8 
-        },
+        position: spawnPos,
         velocity: { x: 0, y: 0 },
         wanderAngle: Math.random() * Math.PI * 2,
         isInfected: false,
@@ -752,12 +859,15 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         trappedTimer: 0,
         isMedic: false,
         healingTimer: 0,
-        health: 10
+        health: 10,
+        isWanderer: Math.random() < GAME_CONSTANTS.WANDERER_CHANCE,
+        panicTimer: 0
       };
-      entity.thought = getRandomThought(entity, [], 0);
+      entity.thought = getRandomThought(entity, [], 0, buildings);
       newEntities.push(entity);
     }
 
+    // Initial Zombies at Outbreak Point
     for(let i = 0; i < 3; i++) {
         const targetIdx = Math.floor(Math.random() * newEntities.length);
         const z = newEntities[targetIdx];
@@ -765,6 +875,14 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         z.isInfected = true;
         z.health = 20; 
         z.thought = (i18n.t('thoughts.ZOMBIE', { returnObjects: true }) as string[])[0];
+        
+        // Move to outbreak point
+        if (outbreakTarget) {
+            z.position = { 
+                lat: outbreakTarget.lat + (Math.random() - 0.5) * 0.0002,
+                lng: outbreakTarget.lng + (Math.random() - 0.5) * 0.0002
+            };
+        }
     }
 
     entitiesRef.current = newEntities;
@@ -783,6 +901,8 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
         setEntities(updated);
       }
     });
+
+    setInitialized(true);
   };
 
   // --- AI STEERING HELPERS ---
@@ -935,21 +1055,22 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
           const wanderForce = getWanderForce(entity);
 
           if (entity.type === EntityType.ZOMBIE) {
-            maxSpeed = GAME_CONSTANTS.MAX_SPEED_ZOMBIE;
             let nearestHuman: GameEntity | null = null;
-            let minDist = GAME_CONSTANTS.VISION_RANGE_ZOMBIE;
+            let minDist = GAME_CONSTANTS.SMELL_RANGE_ZOMBIE;
             
             humans.forEach(h => {
-              const d = getVecDistance(entity.position, h.position);
-              if (d < minDist) { minDist = d; nearestHuman = h; }
+              if (canSmell(entity, h) || canHear(entity, allEntities)) {
+                const d = getVecDistance(entity.position, h.position);
+                if (d < minDist) { minDist = d; nearestHuman = h; }
+              }
             });
 
             if (nearestHuman) {
               acceleration = addVec(acceleration, getSeekForce(entity, nearestHuman.position));
-              maxSpeed *= GAME_CONSTANTS.MULT_SPRINT;
+              maxSpeed = GAME_CONSTANTS.MAX_SPEED_ZOMBIE * GAME_CONSTANTS.MULT_SPRINT;
             } else {
               acceleration = addVec(acceleration, wanderForce);
-              maxSpeed *= GAME_CONSTANTS.MULT_WANDER;
+              maxSpeed = GAME_CONSTANTS.MAX_SPEED_ZOMBIE_IDLE;
             }
           } else if (entity.isMedic) {
              // MEDIC LOGIC
@@ -1037,11 +1158,15 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
           } else if (entity.type === EntityType.SOLDIER) {
             maxSpeed = GAME_CONSTANTS.MAX_SPEED_SOLDIER;
             let nearestZombie: GameEntity | null = null;
-            let minDist = GAME_CONSTANTS.VISION_RANGE_HUMAN * 2;
+            let minDist = GAME_CONSTANTS.SATELLITE_VISION_RANGE;
             
             zombies.forEach(z => {
-              const d = getVecDistance(entity.position, z.position);
-              if (d < minDist) { minDist = d; nearestZombie = z; }
+              // Professionals can see much further via satellite/comms, 
+              // but still use vision/hearing for immediate tactical reaction
+              if (canSee(entity, z, buildingsRef.current) || canHear(entity, allEntities) || getVecDistance(entity.position, z.position) < GAME_CONSTANTS.SATELLITE_VISION_RANGE) {
+                const d = getVecDistance(entity.position, z.position);
+                if (d < minDist) { minDist = d; nearestZombie = z; }
+              }
             });
 
             if (nearestZombie) {
@@ -1066,26 +1191,58 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
           } else {
             // CIVILIAN
             let nearestZombie: GameEntity | null = null;
-            let minDist = GAME_CONSTANTS.VISION_RANGE_HUMAN;
+            let minDist = GAME_CONSTANTS.VISION_RANGE_OUTDOOR;
             zombies.forEach(z => {
-              const d = getVecDistance(entity.position, z.position);
-              if (d < minDist) { minDist = d; nearestZombie = z; nearbyThreats++; }
+              if (canSee(entity, z, buildingsRef.current) || canHear(entity, allEntities)) {
+                const d = getVecDistance(entity.position, z.position);
+                if (d < minDist) { minDist = d; nearestZombie = z; }
+              }
             });
 
             if (nearestZombie) {
-              const panicThreshold = entity.isArmed ? minDist * 0.5 : minDist;
-              if (getVecDistance(entity.position, nearestZombie.position) < panicThreshold) {
-                  acceleration = addVec(acceleration, getFleeForce(entity, nearestZombie.position));
-                  maxSpeed *= GAME_CONSTANTS.MULT_SPRINT;
-              } else if (entity.isArmed) {
-                  acceleration = addVec(acceleration, multVec(getFleeForce(entity, nearestZombie.position), 0.2));
-              }
+                nearbyThreats = 1;
+                entity.panicTimer = GAME_CONSTANTS.PANIC_DURATION;
+                acceleration = addVec(acceleration, getFleeForce(entity, nearestZombie.position));
+                maxSpeed *= GAME_CONSTANTS.MULT_SPRINT;
+            } else if (entity.panicTimer && entity.panicTimer > 0) {
+                entity.panicTimer -= GAME_CONSTANTS.TICK_RATE;
+                // Scared/Panic state but no zombie visible -> Seek nearest building (Hiding)
+                if (!isInside) {
+                    const nearestBuilding = getNearestBuilding(entity.position, buildingsRef.current);
+                    if (nearestBuilding) {
+                        acceleration = addVec(acceleration, getSeekForce(entity, nearestBuilding.geometry[0]));
+                        maxSpeed *= GAME_CONSTANTS.MULT_SPRINT; 
+                    } else {
+                        acceleration = addVec(acceleration, wanderForce);
+                    }
+                } else {
+                    // Already inside, just wander casually
+                    acceleration = addVec(acceleration, multVec(getWanderForce(entity), 0.5));
+                    maxSpeed *= 0.6;
+                }
             } else {
-              acceleration = addVec(acceleration, wanderForce);
-              const distFromCenter = getVecDistance(entity.position, centerPos);
-              if (distFromCenter > GAME_CONSTANTS.SPAWN_RADIUS * 1.2) {
-                acceleration = addVec(acceleration, multVec(getSeekForce(entity, centerPos), 0.5));
-              }
+                // Calm state
+                const shouldSeekIndoor = !entity.isWanderer && !isInside;
+                if (shouldSeekIndoor) {
+                    const nearestBuilding = getNearestBuilding(entity.position, buildingsRef.current);
+                    if (nearestBuilding) {
+                        acceleration = addVec(acceleration, getSeekForce(entity, nearestBuilding.geometry[0]));
+                        maxSpeed *= 0.6; // Casually walking
+                    } else {
+                        acceleration = addVec(acceleration, wanderForce);
+                    }
+                } else if (isInside) {
+                    // Slowly wander inside
+                    acceleration = addVec(acceleration, multVec(getWanderForce(entity), 0.3));
+                    maxSpeed *= 0.4;
+                } else {
+                    // Wanderer outside
+                    acceleration = addVec(acceleration, wanderForce);
+                    const distFromCenter = getVecDistance(entity.position, centerPos);
+                    if (distFromCenter > GAME_CONSTANTS.SPAWN_RADIUS * 1.2) {
+                        acceleration = addVec(acceleration, multVec(getSeekForce(entity, centerPos), 0.5));
+                    }
+                }
             }
 
             // Weapon Pickup Logic for Civilians
@@ -1121,7 +1278,7 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
           }
 
           if (Math.random() < 0.002) { 
-            entity.thought = getRandomThought(entity, activeEntities, nearbyThreats);
+            entity.thought = getRandomThought(entity, activeEntities, nearbyThreats, buildingsRef.current);
             
             // Random Civilian Sounds with Proximity Check & Demographic Data
             if (entity.type === EntityType.CIVILIAN && !entity.isDead) {
@@ -1891,6 +2048,58 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
               </div>
           );
       })}
+      
+      {/* Outbreak Point Marker */}
+      {outbreakPoint && (
+          <Marker 
+              position={[outbreakPoint.lat, outbreakPoint.lng]}
+              icon={L.divIcon({
+                  className: 'bg-transparent',
+                  html: `
+                      <div class="outbreak-marker">
+                          <div class="outbreak-icon">☣️</div>
+                          <div class="outbreak-pulse"></div>
+                      </div>
+                      <style>
+                          .outbreak-marker {
+                              position: relative;
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              width: 40px;
+                              height: 40px;
+                          }
+                          .outbreak-icon {
+                              font-size: 32px;
+                              z-index: 10;
+                              filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8));
+                              animation: outbreak-bounce 2s ease-in-out infinite;
+                          }
+                          .outbreak-pulse {
+                              position: absolute;
+                              width: 100%;
+                              height: 100%;
+                              background: rgba(239, 68, 68, 0.4);
+                              border-radius: 50%;
+                              animation: outbreak-pulse 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+                          }
+                          @keyframes outbreak-bounce {
+                              0%, 100% { transform: translateY(0) scale(1); }
+                              50% { transform: translateY(-5px) scale(1.1); }
+                          }
+                          @keyframes outbreak-pulse {
+                              0% { transform: scale(0.5); opacity: 1; }
+                              100% { transform: scale(2.5); opacity: 0; }
+                          }
+                      </style>
+                  `,
+                  iconSize: [40, 40],
+                  iconAnchor: [20, 20]
+              })}
+              zIndexOffset={1000}
+              interactive={false}
+          />
+      )}
       
       {/* Buildings Layer */}
       {buildingsRef.current.map(b => (

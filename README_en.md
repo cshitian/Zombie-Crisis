@@ -96,6 +96,13 @@ Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to get your API
 
 ---
 
+## 📖 Game Settings
+
+For a detailed explanation of game mechanics, character behaviors, perception systems, and weapon stats, please refer to:
+👉 **[Game Settings Guide](doc/game_settings.md)**
+
+---
+
 ## 📜 Changelog
 
 To understand the detailed update history of the project (including specific improvements in each version), please refer to:
