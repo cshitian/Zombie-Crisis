@@ -19,6 +19,10 @@ export interface Building {
     scavengeCooldownEnd?: number;
     scavengeCount?: number;
   };
+  isOnFire?: boolean;
+  fireStartTime?: number;
+  isCollapsed?: boolean;
+  effectPos?: Coordinates;
 }
 
 export enum BGMState {

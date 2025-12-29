@@ -105,6 +105,12 @@ const getNearestBuilding = (pos: Coordinates, buildings: Building[]) => {
   return nearest;
 };
 
+const getBuildingCenter = (b: Building): Coordinates => {
+  let lat = 0, lng = 0;
+  b.geometry.forEach(p => { lat += p.lat; lng += p.lng; });
+  return { lat: lat / b.geometry.length, lng: lng / b.geometry.length };
+};
+
 // --- Helpers ---
 const getRandomName = (isMale: boolean) => {
   const lang = (i18n.language || 'zh').split('-')[0] as keyof typeof NAMES_DATA;
@@ -999,7 +1005,22 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             strikeZonesRef.current = activeStrikes;
             setStrikeZones([...activeStrikes]);
         }
+
         const tick = tickRef.current;
+
+        // Process Building Fire Expiration & Scaling
+        let bNeedsSync = false;
+        buildingsRef.current.forEach(b => {
+            if (b.isOnFire) {
+                if (b.fireStartTime && now - b.fireStartTime > 30000) {
+                    b.isOnFire = false;
+                    bNeedsSync = true;
+                } else if (tick % 10 === 0) { // Sync every ~500ms to update fire size
+                    bNeedsSync = true;
+                }
+            }
+        });
+        if (bNeedsSync) setBuildingsSyncTrigger(prev => prev + 1);
         
         if (!pausedRef.current) {
             const allEntities = entitiesRef.current;
@@ -1586,6 +1607,42 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
                               }
                           }
                         }
+                      });
+
+                      // --- Rocket Enhancement ---
+                      // 1. Multiple small craters
+                      const numCraters = 3 + Math.floor(Math.random() * 3);
+                      for (let i = 0; i < numCraters; i++) {
+                          const angle = Math.random() * Math.PI * 2;
+                          const dist = Math.random() * explosionRadius;
+                          const craterPos = {
+                              lat: bestTarget.position.lat + dist * Math.cos(angle),
+                              lng: bestTarget.position.lng + dist * Math.sin(angle)
+                          };
+                          cratersRef.current.push({
+                              id: `rocket-crater-${Date.now()}-${Math.random()}`,
+                              position: craterPos,
+                              radius: 0.0001 + Math.random() * 0.0001, // Small craters
+                              timestamp: Date.now()
+                          });
+                      }
+                      setCraters([...cratersRef.current]);
+
+                      // 2. Building fire/collapse
+                      buildingsRef.current.forEach(b => {
+                          const center = getBuildingCenter(b);
+                          if (getVecDistance(center, bestTarget!.position) <= explosionRadius * 2) {
+                              if (Math.random() < 0.4) {
+                                  b.isOnFire = true;
+                                  b.fireStartTime = Date.now();
+                                  b.effectPos = center;
+                              }
+                              if (Math.random() < 0.2) {
+                                  b.isCollapsed = true;
+                                  b.effectPos = center;
+                              }
+                              setBuildingsSyncTrigger(prev => prev + 1);
+                          }
                       });
                   } else {
                       // Unsafe to fire or bad target, hold fire (or maybe flee)
@@ -2273,6 +2330,41 @@ const GameMap = forwardRef<GameMapRef, GameMapProps>((props, ref) => {
             );
         }
         return null;
+      })}
+
+      {/* Building Effects Layer */}
+      {buildingsRef.current.map(b => {
+          if (!b.effectPos || (!b.isOnFire && !b.isCollapsed)) return null;
+          
+          let fireScale = 0;
+          if (b.isOnFire && b.fireStartTime) {
+              const elapsed = Date.now() - b.fireStartTime;
+              fireScale = Math.max(0, 1 - elapsed / 30000);
+          }
+
+          return (
+            <Marker
+              key={`effects-${b.id}`}
+              position={[b.effectPos.lat, b.effectPos.lng]}
+              icon={L.divIcon({
+                className: 'bg-transparent',
+                html: `
+                  <div class="flex flex-col items-center justify-center -translate-y-4">
+                    ${b.isOnFire ? `
+                      <div class="text-2xl animate-bounce" style="transform: scale(${0.4 + fireScale * 1.2}); transition: transform 0.5s ease-out;">🔥</div>
+                    ` : ''}
+                    ${b.isCollapsed ? `
+                      <div class="text-2xl drop-shadow-md">🏚️</div>
+                    ` : ''}
+                  </div>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+              })}
+              interactive={false}
+              zIndexOffset={500}
+            />
+          );
       })}
 
       {entities.map(e => (
